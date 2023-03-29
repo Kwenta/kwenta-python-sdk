@@ -29,7 +29,7 @@ def get_historicals(token):
     current_timestamp = int(time.time())
     # Subtract 4 hours from current timestamp
     day_ago = current_timestamp - (120 * 60 * 60)
-    url = f'https://subgraph.satsuma-prod.com/05943208e921/kwenta/optimism-latest-rates/api'
+    url = f'https://api.thegraph.com/subgraphs/name/kwenta/optimism-latest-rates'
     headers = {'origin':'https://kwenta.eth.limo',
                'referer': 'http://kwenta.eth.limo',
                'accept':'application/json, text/plain, */*',
