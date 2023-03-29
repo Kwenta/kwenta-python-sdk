@@ -15,7 +15,7 @@ import ssl
 import sys
 #import from main folder
 sys.path.append("../")
-from kwenta_v2_limits import *
+from kwenta_v2_sdk import *
 from abi_store import *
 from draw_candles import get_candlestick_plot_simple
 import requests
@@ -24,25 +24,6 @@ import streamlit.components.v1 as components
 from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx,add_script_run_ctx
 import threading
 
-#get Historical Chart Data from Kwenta API
-def get_historicals(token):
-    current_timestamp = int(time.time())
-    # Subtract 4 hours from current timestamp
-    day_ago = current_timestamp - (120 * 60 * 60)
-    url = f'https://subgraph.satsuma-prod.com/05943208e921/kwenta/optimism-latest-rates/api'
-    headers = {'origin':'https://kwenta.eth.limo',
-               'referer': 'http://kwenta.eth.limo',
-               'accept':'application/json, text/plain, */*',
-               'content-type':'application/json'}
-    payload ={
-        "query": f"{{candles(first:1000,where:{{synth:\"{token}\",timestamp_gt:{day_ago},timestamp_lt:{current_timestamp},period:1800}},orderBy:\"timestamp\",orderDirection:\"asc\"){{id synth open high low close timestamp average period aggregatedPrices}}}}"
-    }
-    try:
-        response = requests.post(url,headers=headers,json=payload)
-        return response.json()
-    except Exception as e:
-        print(e)
-        return None
 
 #get account info from Kwenta Graph API
 def get_account_info(wallet_address):

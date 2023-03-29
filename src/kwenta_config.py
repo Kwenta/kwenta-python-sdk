@@ -2,8 +2,8 @@
 ############################################################################
 # Base Configuration
 ############################################################################
-base_token = 'SOL'
-provider_rpc = 'ENTER_RPC'
+# provider_rpc = 'ENTER_RPC'
+provider_rpc = 'https://optimism-mainnet.blastapi.io/ef033c4c-5549-48c5-b632-7123ca44658d'
 private_key = "ENTER_WALLET_PRIVATE_KEY"
 wallet_address = "ENTER_WALLET_ADDRESS"
 ############################################################################
