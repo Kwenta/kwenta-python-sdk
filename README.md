@@ -3,6 +3,17 @@
 Python SDK to interact with Kwenta's Smart Contract Systems.
 
 ## CAUTION: TRADING WITH MARGIN CAN RESULT IN LOSS. PLEASE TRADE RESPONSIBLY!    
+
+## Installation 
+
+The SDK requires the following packages to be installed.
+
+numpy, pandas, plotly, requests, streamlit, web3 
+
+```bash
+pip install -r requirements.txt
+```
+
 ## Variables
 
 To run this project, you will need to add the following variables filled in the kwenta_config.py script.

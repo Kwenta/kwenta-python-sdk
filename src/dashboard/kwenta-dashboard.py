@@ -13,6 +13,8 @@ import traceback
 import time 
 import ssl 
 import sys
+#import from main folder
+sys.path.append("../")
 from kwenta_v2_limits import *
 from abi_store import *
 from draw_candles import get_candlestick_plot_simple
