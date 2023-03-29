@@ -16,6 +16,7 @@ pd.set_option('display.max_columns', None)
 import warnings
 warnings.filterwarnings('ignore')
 
+#initalize web3
 web3 = Web3(Web3.HTTPProvider(provider_rpc))
 
 #load SUSD Contract
