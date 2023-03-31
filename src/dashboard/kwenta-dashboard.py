@@ -15,8 +15,8 @@ import ssl
 import sys
 #import from main folder
 sys.path.append("../")
-from kwenta_v2_sdk import *
-from abi_store import *
+from src.kwenta_v2_sdk import *
+from src.abi_store import *
 from draw_candles import get_candlestick_plot_simple
 import requests
 import time
