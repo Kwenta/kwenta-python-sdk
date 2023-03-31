@@ -103,7 +103,7 @@ class kwenta:
         if private_key is None:
             raise Exception("No private key specified.")
         signed_txn = self.web3.eth.account.sign_transaction(
-            tx_data, private_key=private_key)
+            tx_data, private_key=self.private_key)
         tx_token = self.web3.eth.send_raw_transaction(signed_txn.rawTransaction)
         return self.web3.to_hex(tx_token)
 
@@ -121,7 +121,7 @@ class kwenta:
             token symbol from list of supported asset
         """
         contracts = self.load_contracts(token_symbol.upper())
-        return (contracts.functions.delayedOrders(wallet_address).call())[0]
+        return (contracts.functions.delayedOrders(self.wallet_address).call())[0]
 
     # Returns current asset price
 
@@ -163,7 +163,7 @@ class kwenta:
         """
         contracts = self.load_contracts(token_symbol.upper())
         current_positions = contracts.functions.positions(
-            wallet_address).call()
+            self.wallet_address).call()
         positions_data = {"id": current_positions[0], "lastFundingIndex": current_positions[1],
                           "margin": current_positions[2], "lastPrice": current_positions[3], "size": current_positions[4]}
         return positions_data
@@ -187,7 +187,7 @@ class kwenta:
         """
         contracts = self.load_contracts(token_symbol.upper())
         margin_allowed = (contracts.functions.accessibleMargin(
-            wallet_address).call())[0]
+            self.wallet_address).call())[0]
         readable_amount = margin_allowed / (10**18)
         return {"margin_remaining": margin_allowed, "readable_amount": readable_amount}
 
@@ -210,9 +210,9 @@ class kwenta:
         """
         contracts = self.load_contracts(token_symbol.upper())
         liquidation_check = contracts.functions.canLiquidate(
-            wallet_address).call()
+            self.wallet_address).call()
         liquidation_price = contracts.functions.liquidationPrice(
-            wallet_address).call()
+            self.wallet_address).call()
         return {"liq_possible": liquidation_check, "liq_price": liquidation_price}
 
     # Get Current market skew between shorts and longs (useful for determining market difference)
@@ -281,8 +281,8 @@ class kwenta:
         if (token_amount < susd_balance['wei_balance']):
             data_tx = contracts.encodeABI(
                 fn_name='transferMargin', args=[token_amount])
-            transfer_tx = {'value': 0, 'chainId': 10, 'to': contracts.address, 'from': wallet_address, 'gas': 1500000,
-                           'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(wallet_address), 'data': data_tx}
+            transfer_tx = {'value': 0, 'chainId': 10, 'to': contracts.address, 'from': self.wallet_address, 'gas': 1500000,
+                           'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
             if execute_now:
                 tx_token = self.execute_transaction(transfer_tx)
                 print(f"Updating Position by {token_amount}")
@@ -358,9 +358,9 @@ class kwenta:
             # HEX for 'KWENTA'
             trackingCode = '0x4b57454e54410000000000000000000000000000000000000000000000000000'
             data_tx = contracts.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
-                position_amount, priceImpactDelta, trackingCode])
-            transfer_tx = {'value': 0, 'chainId': 10, 'to': contracts.address, 'from': wallet_address, 'gas': 1500000,
-                           'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(wallet_address), 'data': data_tx}
+                int(position_amount), priceImpactDelta, trackingCode])
+            transfer_tx = {'value': 0, 'chainId': 10, 'to': contracts.address, 'from': self.wallet_address, 'gas': 1500000,
+                           'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
             if execute_now:
                 tx_token = self.execute_transaction(transfer_tx)
                 print(f"Updating Position by {position_amount}")
@@ -370,7 +370,7 @@ class kwenta:
             else:
                 return {"token":token_symbol.upper(),'current_position':current_position['size'],"tx_data":transfer_tx}
     # Close full position
-    def close_position(self, token_symbol: str, wallet_address: str,execute_now:bool=False) -> str:
+    def close_position(self, token_symbol: str,execute_now:bool=False) -> str:
         """
         Fully closes account position 
         ...
@@ -399,9 +399,9 @@ class kwenta:
         # HEX for 'KWENTA'
         trackingCode = '0x4b57454e54410000000000000000000000000000000000000000000000000000'
         data_tx = contracts.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
-            position_amount, priceImpactDelta, trackingCode])
-        transfer_tx = {'value': 0, 'chainId': 10, 'to': contracts.address, 'from': wallet_address, 'gas': 1500000,
-                       'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(wallet_address), 'data': data_tx}
+            int(position_amount), priceImpactDelta, trackingCode])
+        transfer_tx = {'value': 0, 'chainId': 10, 'to': contracts.address, 'from': self.wallet_address, 'gas': 1500000,
+                       'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
         if execute_now:
             tx_token = self.execute_transaction(transfer_tx)
             print(f"Updating Position by {position_amount}")
@@ -451,9 +451,11 @@ class kwenta:
                 f"Current Position Size: {(current_position['size'])/(10**18)}")
             return None
         if leverage_multiplier:
+            max_leverage = self.get_leveraged_amount(token_symbol,leverage_multiplier)['max_asset_leverage']
             position_amount = self.get_leveraged_amount(
                 token_symbol, leverage_multiplier=leverage_multiplier)['leveraged_amount']
         elif position_amount:
+            max_leverage = self.get_leveraged_amount(token_symbol,1)['max_asset_leverage']
             position_amount = position_amount*(10**18)
         # check side
         if short == True:
@@ -463,7 +465,6 @@ class kwenta:
                 "Position size is Negative & Short set to False! Double Check intention.")
             return None
         # checking available margin to make sure this is possible
-        max_leverage = self.get_leveraged_amount(token_symbol,leverage_multiplier)['max_asset_leverage']
         if (abs(position_amount) < max_leverage):
             # check that position size is less than margin limit
             priceImpactDelta = 500000000000000000
@@ -471,8 +472,8 @@ class kwenta:
             trackingCode = '0x4b57454e54410000000000000000000000000000000000000000000000000000'
             data_tx = contracts.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
                 int(position_amount), priceImpactDelta, trackingCode])
-            transfer_tx = {'value': 0, 'chainId': 10, 'to': contracts.address, 'from': wallet_address, 'gas': 1500000,
-                           'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(wallet_address), 'data': data_tx}
+            transfer_tx = {'value': 0, 'chainId': 10, 'to': contracts.address, 'from': self.wallet_address, 'gas': 1500000,
+                           'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
             if execute_now:
                 tx_token = self.execute_transaction(transfer_tx)
                 print(f"Updating Position by {position_amount}")
@@ -646,7 +647,7 @@ class kwenta:
         current_timestamp = int(time.time())
         # Subtract 4 hours from current timestamp
         day_ago = current_timestamp - (time_back * 60 * 60)
-        url = f'https://subgraph.satsuma-prod.com/05943208e921/kwenta/optimism-latest-rates/api'
+        url = f'https://api.thegraph.com/subgraphs/name/kwenta/optimism-latest-rates'
         headers = {'accept': 'application/json, text/plain, */*',
             'content-type': 'application/json'}
         payload = {
