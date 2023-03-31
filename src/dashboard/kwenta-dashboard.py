@@ -27,7 +27,7 @@ import threading
 
 #get account info from Kwenta Graph API
 def get_account_info(wallet_address):
-    url = f'https://subgraph.satsuma-prod.com/05943208e921/kwenta/optimism-perps/api'
+    url = f'https://api.thegraph.com/subgraphs/name/kwenta/optimism-perps'
     headers = {'accept':'application/json',
                'content-type':'application/json'}
     query = f'''{{futuresPositions(where:{{account:\"{wallet_address}\"}},first:1000,orderBy:\"openTimestamp\",orderDirection:\"desc\"){{id lastTxHash openTimestamp closeTimestamp timestamp market marketKey asset account abstractAccount accountType isOpen isLiquidated trades totalVolume size initialMargin margin pnl feesPaid netFunding pnlWithFeesPaid netTransfers totalDeposits fundingIndex entryPrice avgEntryPrice lastPrice exitPrice}}}}'''
