@@ -89,7 +89,7 @@ class kwenta:
         private_key : str
             private key of wallet sending transaction
         """
-        if private_key is None:
+        if self.private_key is None:
             raise Exception("No private key specified.")
         signed_txn = self.web3.eth.account.sign_transaction(
             tx_data, private_key=self.private_key)
