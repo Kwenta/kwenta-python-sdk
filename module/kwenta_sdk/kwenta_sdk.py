@@ -3,7 +3,7 @@ import warnings
 import pandas as pd
 import requests
 from web3 import Web3
-from contracts import abis, addresses
+from .contracts import abis, addresses
 
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
@@ -90,7 +90,7 @@ class kwenta:
         private_key : str
             private key of wallet sending transaction
         """
-        if private_key is None:
+        if self.private_key is None:
             raise Exception("No private key specified.")
         signed_txn = self.web3.eth.account.sign_transaction(
             tx_data, private_key=self.private_key)
