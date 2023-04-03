@@ -1,14 +1,9 @@
-import json
-import os
 import time
 import warnings
-import random
 import pandas as pd
 import requests
-import numpy as np
 from web3 import Web3
-from kwenta_sdk.abi_store import *
-from kwenta_sdk.kwenta_config import *
+from contracts import abis, addresses
 
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
@@ -20,7 +15,7 @@ class kwenta:
         self.web3 = Web3(Web3.HTTPProvider(provider_rpc))
         self.private_key = private_key
         self.wallet_address = wallet_address
-        self.allmarket_listings, self.PerpsV2MarketData_abi, self.PerpsV2Market_abi, self.susd_token = self.init_markets()
+        self.allmarket_listings, self.susd_token = self.init_markets()
         self.token_list = list(self.allmarket_listings.keys())
 
     def init_markets(self):
@@ -32,15 +27,8 @@ class kwenta:
         ----------
         N/A
         """
-        JSON_PATH = os.path.join(os.path.dirname(__file__), 'json')
-        # load the PerpsV2MarketData ABI
-        with open(f'{JSON_PATH}\\PerpsV2MarketData.json') as json_file:
-            PerpsV2MarketData_abi = json.load(json_file)
-        # load the PerpsV2Market ABI
-        with open(f'{JSON_PATH}\\PerpsV2Market.json') as json_file:
-            PerpsV2Market_abi = json.load(json_file)
         marketdata_contract = self.web3.eth.contract(self.web3.to_checksum_address(
-            contracts['PerpsV2MarketData'][10]), abi=PerpsV2MarketData_abi)
+            addresses['PerpsV2MarketData'][10]), abi=abis['PerpsV2MarketData'])
         allmarketsdata = (
             marketdata_contract.functions.allProxiedMarketSummaries().call())
         allmarket_listings = {}
@@ -68,9 +56,10 @@ class kwenta:
                 'utf-8').strip("\x00").strip("PERP")[1:]] = normalized_market
 
         # load SUSD Contract
-        susd_token = self.web3.eth.contract(self.web3.to_checksum_address(susd_contract['susd_addr']), abi=susd_contract['susd_abi'])
-        
-        return allmarket_listings, PerpsV2MarketData_abi, PerpsV2Market_abi, susd_token
+        susd_token = self.web3.eth.contract(
+            self.web3.to_checksum_address(addresses['sUSD'][10]), abi=abis['sUSD'])
+
+        return allmarket_listings, susd_token
 
     def load_contracts(self, token_symbol: str):
         """
@@ -86,7 +75,7 @@ class kwenta:
             raise Exception("Token Not in Supported Token List.")
         # Load Token Contracts
         proxy_contract = self.web3.eth.contract(self.web3.to_checksum_address(
-            self.allmarket_listings[token_symbol]['market_address']), abi=self.PerpsV2Market_abi)
+            self.allmarket_listings[token_symbol]['market_address']), abi=abis['PerpsV2Market'])
         return proxy_contract
 
     def execute_transaction(self, tx_data: dict):
