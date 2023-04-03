@@ -32,12 +32,14 @@ class kwenta:
         ----------
         N/A
         """
-        JSON_PATH = os.path.join(os.path.dirname(__file__), 'json')
+        JSON_PATH = os.path.join(os.path.dirname(__file__), 'jsondata')
+        file_path = os.path.join(JSON_PATH, './PerpsV2MarketData.json')
         # load the PerpsV2MarketData ABI
-        with open(f'{JSON_PATH}\\PerpsV2MarketData.json') as json_file:
+        with open(file_path) as json_file:
             PerpsV2MarketData_abi = json.load(json_file)
+        file_path = os.path.join(JSON_PATH, './PerpsV2Market.json')
         # load the PerpsV2Market ABI
-        with open(f'{JSON_PATH}\\PerpsV2Market.json') as json_file:
+        with open(file_path) as json_file:
             PerpsV2Market_abi = json.load(json_file)
         marketdata_contract = self.web3.eth.contract(self.web3.to_checksum_address(
             contracts['PerpsV2MarketData'][10]), abi=PerpsV2MarketData_abi)
