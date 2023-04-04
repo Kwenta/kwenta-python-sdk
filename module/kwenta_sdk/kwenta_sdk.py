@@ -3,7 +3,7 @@ import warnings
 import pandas as pd
 import requests
 from web3 import Web3
-from contracts.contracts import addresses, abis
+from .contracts import abis, addresses
 
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
@@ -56,8 +56,9 @@ class kwenta:
                 'utf-8').strip("\x00").strip("PERP")[1:]] = normalized_market
 
         # load SUSD Contract
-        susd_token = self.web3.eth.contract(self.web3.to_checksum_address(addresses['sUSD'][10]), abi=abis['sUSD'])
-        
+        susd_token = self.web3.eth.contract(
+            self.web3.to_checksum_address(addresses['sUSD'][10]), abi=abis['sUSD'])
+
         return allmarket_listings, susd_token
 
     def load_contracts(self, token_symbol: str):
