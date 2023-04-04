@@ -9,14 +9,32 @@ pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 warnings.filterwarnings('ignore')
 
+# defaults
+DEFAULT_NETWORK_ID = 10
+DEFAULT_TRACKING_CODE = '0x4b57454e54410000000000000000000000000000000000000000000000000000'
+DEFAULT_PRICE_IMPACT_DELTA = 500000000000000000
+
 class kwenta:
-    def __init__(self, provider_rpc:str, wallet_address:str, private_key:str=None):
-        #init account variables + contracts
-        self.web3 = Web3(Web3.HTTPProvider(provider_rpc))
+    def __init__(self, provider_rpc:str, wallet_address:str, private_key:str=None, network_id:int=None):
+        # set default values
+        if network_id is None:
+            network_id = DEFAULT_NETWORK_ID
+
+        # init account variables
         self.private_key = private_key
         self.wallet_address = wallet_address
-        self.allmarket_listings, self.susd_token = self.init_markets()
-        self.token_list = list(self.allmarket_listings.keys())
+
+        # init provider
+        w3 = Web3(Web3.HTTPProvider(provider_rpc))
+        if w3.eth.chain_id != network_id:
+            raise Exception("The RPC `chain_id` must match `network_id`")
+        else:
+            self.network_id = network_id
+            self.web3 = w3
+
+        # init contracts
+        self.markets, self.susd_token = self.init_markets()
+        self.token_list = list(self.markets.keys())
 
     def init_markets(self):
         """
@@ -28,10 +46,10 @@ class kwenta:
         N/A
         """
         marketdata_contract = self.web3.eth.contract(self.web3.to_checksum_address(
-            addresses['PerpsV2MarketData'][10]), abi=abis['PerpsV2MarketData'])
+            addresses['PerpsV2MarketData'][self.network_id]), abi=abis['PerpsV2MarketData'])
         allmarketsdata = (
             marketdata_contract.functions.allProxiedMarketSummaries().call())
-        allmarket_listings = {}
+        markets = {}
         for market in allmarketsdata:
             normalized_market = {
                 "market_address": market[0],
@@ -52,18 +70,18 @@ class kwenta:
                 "makerFeeOffchainDelayedOrder": market[10][5],
                 "overrideCommitFee": market[10][6]
             }
-            allmarket_listings[market[2].decode(
+            markets[market[2].decode(
                 'utf-8').strip("\x00").strip("PERP")[1:]] = normalized_market
 
         # load SUSD Contract
         susd_token = self.web3.eth.contract(
-            self.web3.to_checksum_address(addresses['sUSD'][10]), abi=abis['sUSD'])
+            self.web3.to_checksum_address(addresses['sUSD'][self.network_id]), abi=abis['sUSD'])
 
-        return allmarket_listings, susd_token
+        return markets, susd_token
 
     def load_contracts(self, token_symbol: str):
         """
-        Loads contracts for specific token Symbol
+        Loads contracts for specific token symbol
         ...
 
         Attributes
@@ -75,7 +93,7 @@ class kwenta:
             raise Exception("Token Not in Supported Token List.")
         # Load Token Contracts
         proxy_contract = self.web3.eth.contract(self.web3.to_checksum_address(
-            self.allmarket_listings[token_symbol]['market_address']), abi=abis['PerpsV2Market'])
+            self.markets[token_symbol]['market_address']), abi=abis['PerpsV2Market'])
         return proxy_contract
 
     def execute_transaction(self, tx_data: dict):
@@ -97,7 +115,6 @@ class kwenta:
         tx_token = self.web3.eth.send_raw_transaction(signed_txn.rawTransaction)
         return self.web3.to_hex(tx_token)
 
-    # Returns bool of if delayed order is in queue
     def check_delayed_orders(self, token_symbol: str) -> bool:
         """
         Check if delayed order is in queue
@@ -112,8 +129,6 @@ class kwenta:
         """
         contracts = self.load_contracts(token_symbol.upper())
         return (contracts.functions.delayedOrders(self.wallet_address).call())[0]
-
-    # Returns current asset price
 
     def get_current_asset_price(self, token_symbol: str) -> dict:
         """
@@ -133,8 +148,6 @@ class kwenta:
         wei_price = (contracts.functions.assetPrice().call())[0]
         usd_price = wei_price/(10**18)
         return {"usd": usd_price, "wei": wei_price}
-
-    # Gets current position data
 
     def get_current_positions(self, token_symbol: str) -> dict:
         """
@@ -227,15 +240,18 @@ class kwenta:
         """
         contracts = self.load_contracts(token_symbol.upper())
         skew = contracts.functions.marketSizes().call()
-        percent_long = skew[0]/(skew[0]+skew[1])*100
-        percent_short = skew[1]/(skew[0]+skew[1])*100
+        if skew[0]+skew[1] == 0:
+            percent_long = 0
+            percent_short = 0
+        else:
+            percent_long = skew[0]/(skew[0]+skew[1])*100
+            percent_short = skew[1]/(skew[0]+skew[1])*100
         return {"long": skew[0], "short": skew[1], "percent_long": percent_long, "percent_short": percent_short}
 
-    # Gets current SUSD Balance in wallet, NOT MARGIN ACCOUNT
-
+    # Gets current sUSD Balance in wallet
     def get_susd_balance(self) -> dict:
         """
-        Gets current SUSD Balance in wallet
+        Gets current sUSD Balance in wallet
         ...
 
         Attributes
@@ -244,7 +260,7 @@ class kwenta:
             wallet_address of wallet to check
         Returns
         ----------
-        Dict: wei and usd SUSD balance
+        Dict: wei and usd sUSD balance
         """
         wei_balance = self.susd_token.functions.balanceOf(self.wallet_address).call()
         usd_balance = wei_balance/(10**18)
@@ -276,7 +292,7 @@ class kwenta:
         if (token_amount < susd_balance['wei_balance']):
             data_tx = contracts.encodeABI(
                 fn_name='transferMargin', args=[token_amount])
-            transfer_tx = {'value': 0, 'chainId': 10, 'to': contracts.address, 'from': self.wallet_address, 'gas': 1500000,
+            transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': contracts.address, 'from': self.wallet_address, 'gas': 1500000,
                            'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
             if execute_now:
                 tx_token = self.execute_transaction(transfer_tx)
@@ -349,12 +365,9 @@ class kwenta:
         print(f"Current Position Size: {current_position['size']}")
         # check that position size is less than margin limit
         if (position_amount < current_position['margin']):
-            priceImpactDelta = 500000000000000000
-            # HEX for 'KWENTA'
-            trackingCode = '0x4b57454e54410000000000000000000000000000000000000000000000000000'
             data_tx = contracts.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
-                int(position_amount), priceImpactDelta, trackingCode])
-            transfer_tx = {'value': 0, 'chainId': 10, 'to': contracts.address, 'from': self.wallet_address, 'gas': 1500000,
+                int(position_amount), DEFAULT_PRICE_IMPACT_DELTA, DEFAULT_TRACKING_CODE])
+            transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': contracts.address, 'from': self.wallet_address, 'gas': 1500000,
                            'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
             if execute_now:
                 tx_token = self.execute_transaction(transfer_tx)
@@ -389,13 +402,9 @@ class kwenta:
             return None
         # Flip position size to the opposite direction
         position_amount = (current_position['size']) * -1
-        # check that position size is less than margin limit
-        priceImpactDelta = 500000000000000000
-        # HEX for 'KWENTA'
-        trackingCode = '0x4b57454e54410000000000000000000000000000000000000000000000000000'
         data_tx = contracts.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
-            int(position_amount), priceImpactDelta, trackingCode])
-        transfer_tx = {'value': 0, 'chainId': 10, 'to': contracts.address, 'from': self.wallet_address, 'gas': 1500000,
+            int(position_amount), DEFAULT_PRICE_IMPACT_DELTA, DEFAULT_TRACKING_CODE])
+        transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': contracts.address, 'from': self.wallet_address, 'gas': 1500000,
                        'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
         if execute_now:
             tx_token = self.execute_transaction(transfer_tx)
@@ -461,13 +470,9 @@ class kwenta:
             return None
         # checking available margin to make sure this is possible
         if (abs(position_amount) < max_leverage):
-            # check that position size is less than margin limit
-            priceImpactDelta = 500000000000000000
-            # HEX for 'KWENTA'
-            trackingCode = '0x4b57454e54410000000000000000000000000000000000000000000000000000'
             data_tx = contracts.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
-                int(position_amount), priceImpactDelta, trackingCode])
-            transfer_tx = {'value': 0, 'chainId': 10, 'to': contracts.address, 'from': self.wallet_address, 'gas': 1500000,
+                int(position_amount), DEFAULT_PRICE_IMPACT_DELTA, DEFAULT_TRACKING_CODE])
+            transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': contracts.address, 'from': self.wallet_address, 'gas': 1500000,
                            'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
             if execute_now:
                 tx_token = self.execute_transaction(transfer_tx)
