@@ -33,7 +33,7 @@ class kwenta:
             self.web3 = w3
 
         # init contracts
-        self.markets, self.susd_token = self.init_markets()
+        self.markets, self.market_contracts, self.susd_token = self.init_markets()
         self.token_list = list(self.markets.keys())
 
     def init_markets(self):
@@ -50,6 +50,7 @@ class kwenta:
         allmarketsdata = (
             marketdata_contract.functions.allProxiedMarketSummaries().call())
         markets = {}
+        market_contracts = {}
         for market in allmarketsdata:
             normalized_market = {
                 "market_address": market[0],
@@ -70,18 +71,37 @@ class kwenta:
                 "makerFeeOffchainDelayedOrder": market[10][5],
                 "overrideCommitFee": market[10][6]
             }
-            markets[market[2].decode(
-                'utf-8').strip("\x00").strip("PERP")[1:]] = normalized_market
-
-        # load SUSD Contract
+            
+            # set them
+            token_symbol = market[2].decode('utf-8').strip("\x00").strip("PERP")[1:]
+            markets[token_symbol] = normalized_market
+            market_contracts[token_symbol] = self.web3.eth.contract(
+                self.web3.to_checksum_address(normalized_market['market_address']), abi=abis['PerpsV2Market'])
+            
+        # load sUSD contract
         susd_token = self.web3.eth.contract(
             self.web3.to_checksum_address(addresses['sUSD'][self.network_id]), abi=abis['sUSD'])
 
-        return markets, susd_token
+        return markets, market_contracts, susd_token
 
-    def load_contracts(self, token_symbol: str):
+    def load_market_contract(self, token_symbol: str):
         """
-        Loads contracts for specific token symbol
+        Loads market contract for specific token symbol
+        ...
+
+        Attributes
+        ----------
+        token_symbol : str
+            token symbol from list of supported asset
+        """
+        # load market contracts
+        proxy_contract = self.web3.eth.contract(self.web3.to_checksum_address(
+            self.markets[token_symbol]['market_address']), abi=abis['PerpsV2Market'])
+        return proxy_contract
+
+    def get_market_contract(self, token_symbol: str):
+        """
+        Run checks and return market contract if it exists
         ...
 
         Attributes
@@ -91,11 +111,9 @@ class kwenta:
         """
         if not (token_symbol in self.token_list):
             raise Exception("Token Not in Supported Token List.")
-        # Load Token Contracts
-        proxy_contract = self.web3.eth.contract(self.web3.to_checksum_address(
-            self.markets[token_symbol]['market_address']), abi=abis['PerpsV2Market'])
-        return proxy_contract
-
+        else:
+            return self.market_contracts[token_symbol.upper()]
+ 
     def execute_transaction(self, tx_data: dict):
         """
         Execute a transaction given the TX data 
@@ -127,8 +145,8 @@ class kwenta:
         token_symbol : str
             token symbol from list of supported asset
         """
-        contracts = self.load_contracts(token_symbol.upper())
-        return (contracts.functions.delayedOrders(self.wallet_address).call())[0]
+        market_contract = self.market_contracts[token_symbol]
+        return (market_contract.functions.delayedOrders(self.wallet_address).call())[0]
 
     def get_current_asset_price(self, token_symbol: str) -> dict:
         """
@@ -144,8 +162,8 @@ class kwenta:
         ----------
         Dict with wei and USD price
         """
-        contracts = self.load_contracts(token_symbol.upper())
-        wei_price = (contracts.functions.assetPrice().call())[0]
+        market_contract = self.market_contracts[token_symbol.upper()]
+        wei_price = (market_contract.functions.assetPrice().call())[0]
         usd_price = wei_price/(10**18)
         return {"usd": usd_price, "wei": wei_price}
 
@@ -164,8 +182,8 @@ class kwenta:
         ----------
         Dict: position information
         """
-        contracts = self.load_contracts(token_symbol.upper())
-        current_positions = contracts.functions.positions(
+        market_contract = self.get_market_contract(token_symbol)
+        current_positions = market_contract.functions.positions(
             self.wallet_address).call()
         current_asset_price = self.get_current_asset_price(token_symbol)
         if current_positions[4] < 0:
@@ -193,8 +211,8 @@ class kwenta:
         ----------
         Dict: Margin remaining in wei and usd
         """
-        contracts = self.load_contracts(token_symbol.upper())
-        margin_allowed = (contracts.functions.accessibleMargin(
+        market_contract = self.get_market_contract(token_symbol)
+        margin_allowed = (market_contract.functions.accessibleMargin(
             self.wallet_address).call())[0]
         readable_amount = margin_allowed / (10**18)
         return {"margin_remaining": margin_allowed, "readable_amount": readable_amount}
@@ -208,18 +226,16 @@ class kwenta:
 
         Attributes
         ----------
-        wallet_address : str
-            wallet_address of wallet to check
         token_symbol : str
             token symbol from list of supported asset
         Returns
         ----------
         Dict: Liquidation Data
         """
-        contracts = self.load_contracts(token_symbol.upper())
-        liquidation_check = contracts.functions.canLiquidate(
+        market_contract = self.get_market_contract(token_symbol)
+        liquidation_check = market_contract.functions.canLiquidate(
             self.wallet_address).call()
-        liquidation_price = contracts.functions.liquidationPrice(
+        liquidation_price = market_contract.functions.liquidationPrice(
             self.wallet_address).call()
         return {"liq_possible": liquidation_check, "liq_price": liquidation_price}
 
@@ -238,8 +254,8 @@ class kwenta:
         ----------
         Dict with market skew information
         """
-        contracts = self.load_contracts(token_symbol.upper())
-        skew = contracts.functions.marketSizes().call()
+        market_contract = self.get_market_contract(token_symbol)
+        skew = market_contract.functions.marketSizes().call()
         if skew[0]+skew[1] == 0:
             percent_long = 0
             percent_short = 0
@@ -287,12 +303,12 @@ class kwenta:
         """
         token_amount = (token_amount)*(10**18)
         susd_balance = self.get_susd_balance()
-        contracts = self.load_contracts(token_symbol.upper())
+        market_contract = self.get_market_contract(token_symbol)
         print(f"SUSD Available: {susd_balance['usd_balance']}")
         if (token_amount < susd_balance['wei_balance']):
-            data_tx = contracts.encodeABI(
+            data_tx = market_contract.encodeABI(
                 fn_name='transferMargin', args=[token_amount])
-            transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': contracts.address, 'from': self.wallet_address, 'gas': 1500000,
+            transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': market_contract.address, 'from': self.wallet_address, 'gas': 1500000,
                            'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
             if execute_now:
                 tx_token = self.execute_transaction(transfer_tx)
@@ -359,15 +375,15 @@ class kwenta:
         ----------
         str: token transfer Tx id 
         """
-        contracts = self.load_contracts(token_symbol.upper())
+        market_contract = self.get_market_contract(token_symbol)
         position_amount = position_amount*(10**18)
         current_position = self.get_current_positions(token_symbol)
         print(f"Current Position Size: {current_position['size']}")
         # check that position size is less than margin limit
         if (position_amount < current_position['margin']):
-            data_tx = contracts.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
+            data_tx = market_contract.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
                 int(position_amount), DEFAULT_PRICE_IMPACT_DELTA, DEFAULT_TRACKING_CODE])
-            transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': contracts.address, 'from': self.wallet_address, 'gas': 1500000,
+            transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': market_contract.address, 'from': self.wallet_address, 'gas': 1500000,
                            'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
             if execute_now:
                 tx_token = self.execute_transaction(transfer_tx)
@@ -385,8 +401,6 @@ class kwenta:
 
         Attributes
         ----------
-        wallet_address : str
-            wallet_address of wallet to check
         token_symbol : str
             token symbol from list of supported asset
 
@@ -394,7 +408,7 @@ class kwenta:
         ----------
         str: token transfer Tx id 
         """
-        contracts = self.load_contracts(token_symbol.upper())
+        market_contract = self.get_market_contract(token_symbol)
         current_position = self.get_current_positions(token_symbol)
         print(f"Current Position Size: {current_position['size']}")
         if current_position['size'] == 0:
@@ -402,9 +416,9 @@ class kwenta:
             return None
         # Flip position size to the opposite direction
         position_amount = (current_position['size']) * -1
-        data_tx = contracts.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
+        data_tx = market_contract.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
             int(position_amount), DEFAULT_PRICE_IMPACT_DELTA, DEFAULT_TRACKING_CODE])
-        transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': contracts.address, 'from': self.wallet_address, 'gas': 1500000,
+        transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': market_contract.address, 'from': self.wallet_address, 'gas': 1500000,
                        'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
         if execute_now:
             tx_token = self.execute_transaction(transfer_tx)
@@ -423,8 +437,6 @@ class kwenta:
 
         Attributes
         ----------
-        wallet_address : str
-            wallet_address of wallet to check
         token_symbol : str
             token symbol from list of supported asset
         short : bool, optional 
@@ -447,7 +459,7 @@ class kwenta:
             print("Enter EITHER a position amount or a leverage multiplier!")
             return None
         current_position = self.get_current_positions(token_symbol)
-        contracts = self.load_contracts(token_symbol.upper())
+        market_contract = self.get_market_contract(token_symbol)
         # starting at zero otherwise use Update position
         if current_position['size'] != 0:
             print(f"You are already in Position, use update_position() instead.")
@@ -470,9 +482,9 @@ class kwenta:
             return None
         # checking available margin to make sure this is possible
         if (abs(position_amount) < max_leverage):
-            data_tx = contracts.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
+            data_tx = market_contract.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
                 int(position_amount), DEFAULT_PRICE_IMPACT_DELTA, DEFAULT_TRACKING_CODE])
-            transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': contracts.address, 'from': self.wallet_address, 'gas': 1500000,
+            transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': market_contract.address, 'from': self.wallet_address, 'gas': 1500000,
                            'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
             if execute_now:
                 tx_token = self.execute_transaction(transfer_tx)
@@ -491,8 +503,6 @@ class kwenta:
 
         Attributes
         ----------
-        wallet_address : str
-            wallet_address of wallet to check
         token_symbol : str
             token symbol from list of supported asset
         short : bool, optional 
