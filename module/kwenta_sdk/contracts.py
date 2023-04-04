@@ -15,7 +15,8 @@ with open(f'{os.path.dirname(os.path.abspath(__file__))}/json/sUSD.json') as jso
 # create dictionaries
 addresses = {
 	"sUSD": {
-		10: '0x8c6f28f2f1a3c87f0f938b96d27520d9751ec8d9'
+		10: '0x8c6f28f2f1a3c87f0f938b96d27520d9751ec8d9',
+		420: '0xeBaEAAD9236615542844adC5c149F86C36aD1136'
 	},
 	"PerpsV2MarketData": {
 		10: '0xF7D3D05cCeEEcC9d77864Da3DdE67Ce9a0215A9D',
