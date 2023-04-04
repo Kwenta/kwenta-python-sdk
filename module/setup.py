@@ -3,6 +3,7 @@ setup(
     name='kwenta_sdk',
     version='1.0.0',
     description='Python SDK for Kwenta',
+    long_description='Python SDK for Kwenta',
     author='Kwenta Development Team',
     packages=['kwenta_sdk'],
     install_requires=[
