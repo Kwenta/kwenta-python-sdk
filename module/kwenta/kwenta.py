@@ -4,15 +4,11 @@ import pandas as pd
 import requests
 from web3 import Web3
 from .contracts import abis, addresses
+from .defaults import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_PRICE_IMPACT_DELTA
 
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 warnings.filterwarnings('ignore')
-
-# defaults
-DEFAULT_NETWORK_ID = 10
-DEFAULT_TRACKING_CODE = '0x4b57454e54410000000000000000000000000000000000000000000000000000'
-DEFAULT_PRICE_IMPACT_DELTA = 500000000000000000
 
 class kwenta:
     def __init__(self, provider_rpc:str, wallet_address:str, private_key:str=None, network_id:int=None):
