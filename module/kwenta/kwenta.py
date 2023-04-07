@@ -361,17 +361,15 @@ class kwenta:
             (margin['margin_remaining']/asset_price['wei'])*leverage_multiplier)
         return {"leveraged_amount": leveraged_amount, "max_asset_leverage": max_leverage}
 
-    # Update current position with new amounts, i.e. increase/decrease position
-
-    def update_position(self, token_symbol: str, size_delta: float,execute_now:bool=False) -> str:
+    def modify_position(self, token_symbol: str, size_delta: float,execute_now:bool=False) -> str:
         """
-        Transfers SUSD from wallet to Margin account
+        Submits a delayed offchain order with a size of `size_delta`
         ...
 
         Attributes
         ----------
         size_delta : float
-            Position amount *in human readable* as trade asset i.e. 12 SOL == 12*(10**18). Exact position in a direction (Sign this It WILL MATTER).
+            Position amount *in human readable* as trade asset i.e. 12 SOL == 12*(10**18). Exact position in a direction, with negative values representing short orders.
         token_symbol : str
             token symbol from list of supported asset
         wallet_address : str
@@ -379,7 +377,7 @@ class kwenta:
 
         Returns
         ----------
-        str: token transfer Tx id 
+        str: token transfer Tx id
         """
         is_short = -1 if size_delta < 0 else 1
         market_contract = self.get_market_contract(token_symbol)
@@ -475,7 +473,7 @@ class kwenta:
         market_contract = self.get_market_contract(token_symbol)
         # starting at zero otherwise use Update position
         if current_position['size'] != 0:
-            print(f"You are already in Position, use update_position() instead.")
+            print(f"You are already in Position, use modify_position() instead.")
             print(
                 f"Current Position Size: {(current_position['size'])/(10**18)}")
             return None
