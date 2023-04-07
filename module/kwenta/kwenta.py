@@ -65,11 +65,10 @@ class kwenta:
                 "makerFeeDelayedOrder": market[10][3],
                 "takerFeeOffchainDelayedOrder": market[10][4],
                 "makerFeeOffchainDelayedOrder": market[10][5],
-                "overrideCommitFee": market[10][6]
             }
             
             # set them
-            token_symbol = market[2].decode('utf-8').strip("\x00").strip("PERP")[1:]
+            token_symbol = market[2].decode('utf-8').strip("\x00")[1:-4]
             markets[token_symbol] = normalized_market
             market_contracts[token_symbol] = self.web3.eth.contract(
                 self.web3.to_checksum_address(normalized_market['market_address']), abi=abis['PerpsV2Market'])
