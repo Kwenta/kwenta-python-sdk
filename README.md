@@ -37,7 +37,7 @@ To run this project, you will need to add the following variables filled in the 
 
 ## Dashboard Deployment
 
-To run the streamlit dashboard run the following. This is still being built. The Python functions however are fully funcitonal.
+To run the streamlit dashboard run the following. This is still being built. The Python functions however are fully functional.
 ```bash
   streamlit run .\kwenta-dashboard.py
 ```
