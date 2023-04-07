@@ -5,7 +5,7 @@ import requests
 from web3 import Web3
 from decimal import Decimal
 from .contracts import abis, addresses
-from .constants import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_PRICE_IMPACT_DELTA, ETHER
+from .constants import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_PRICE_IMPACT_DELTA, DEFAULT_SLIPPAGE
 
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
@@ -363,14 +363,14 @@ class kwenta:
 
     # Update current position with new amounts, i.e. increase/decrease position
 
-    def update_position(self, token_symbol: str, position_amount: float,execute_now:bool=False) -> str:
+    def update_position(self, token_symbol: str, size_delta: float,execute_now:bool=False) -> str:
         """
         Transfers SUSD from wallet to Margin account
         ...
 
         Attributes
         ----------
-        position_amount : float
+        size_delta : float
             Position amount *in human readable* as trade asset i.e. 12 SOL == 12*(10**18). Exact position in a direction (Sign this It WILL MATTER).
         token_symbol : str
             token symbol from list of supported asset
@@ -381,20 +381,26 @@ class kwenta:
         ----------
         str: token transfer Tx id 
         """
+        is_short = -1 if size_delta < 0 else 1
         market_contract = self.get_market_contract(token_symbol)
-        position_amount = self.web3.to_wei(position_amount, 'wei')
-        print(position_amount)
+        size_delta = self.web3.to_wei(abs(size_delta), 'ether') * is_short
+
         current_position = self.get_current_positions(token_symbol)
+        current_price = self.get_current_asset_price(token_symbol)
+
+        desired_fill_price = int(current_price['wei'] + current_price['wei'] * DEFAULT_SLIPPAGE * is_short)
+
         print(f"Current Position Size: {current_position['size']}")
         # check that position size is less than margin limit
-        if (position_amount < current_position['margin']):
+        if (size_delta < current_position['margin']):
             data_tx = market_contract.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
-                int(position_amount), DEFAULT_PRICE_IMPACT_DELTA, DEFAULT_TRACKING_CODE])
+                int(size_delta), desired_fill_price, DEFAULT_TRACKING_CODE])
             transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': market_contract.address, 'from': self.wallet_address, 'gas': 1500000,
                            'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
+
+            print(f"Updating Position by {size_delta}")
             if execute_now:
                 tx_token = self.execute_transaction(transfer_tx)
-                print(f"Updating Position by {position_amount}")
                 print(f"TX: {tx_token}")
                 time.sleep(1)
                 return tx_token
