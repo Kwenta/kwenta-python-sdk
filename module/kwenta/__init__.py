@@ -1,1 +1,1 @@
-from kwenta.kwenta import kwenta
+from .kwenta import kwenta

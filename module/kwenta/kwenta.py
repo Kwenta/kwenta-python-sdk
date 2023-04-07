@@ -184,12 +184,12 @@ class kwenta:
         current_asset_price = self.get_current_asset_price(token_symbol)
         
         # clean usd values
-        size_ether = self.web3.from_wei(size, 'ether')
+        is_short = -1 if size < 0 else 1
+        size_ether = self.web3.from_wei(abs(size), 'ether') * is_short
         last_price_usd = self.web3.from_wei(last_price, 'ether')
 
         # calculate pnl
         price_diff = current_asset_price['usd'] - last_price_usd
-        is_short = -1 if size < 0 else 1
         pnl = size_ether * price_diff * is_short
 
         positions_data = {"id": id, "last_funding_index": last_funding_index,
@@ -421,19 +421,24 @@ class kwenta:
         """
         market_contract = self.get_market_contract(token_symbol)
         current_position = self.get_current_positions(token_symbol)
+        current_price = self.get_current_asset_price(token_symbol)
+
+        is_short = -1 if -current_position['size'] < 0 else 1
+        desired_fill_price = int(
+            current_price['wei'] + current_price['wei'] * DEFAULT_SLIPPAGE * is_short)
+
         print(f"Current Position Size: {current_position['size']}")
         if current_position['size'] == 0:
             print("Not in position!")
             return None
         # Flip position size to the opposite direction
-        position_amount = (current_position['size']) * -1
-        data_tx = market_contract.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
-            int(position_amount), DEFAULT_PRICE_IMPACT_DELTA, DEFAULT_TRACKING_CODE])
+        data_tx = market_contract.encodeABI(fn_name='submitCloseOffchainDelayedOrderWithTracking', args=[
+            desired_fill_price, DEFAULT_TRACKING_CODE])
         transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': market_contract.address, 'from': self.wallet_address, 'gas': 1500000,
                        'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
         if execute_now:
             tx_token = self.execute_transaction(transfer_tx)
-            print(f"Updating Position by {position_amount}")
+            print(f"Closing Position by {-current_position['size']}")
             print(f"TX: {tx_token}")
             time.sleep(1)
             return tx_token
