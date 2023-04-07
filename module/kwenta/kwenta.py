@@ -3,8 +3,9 @@ import warnings
 import pandas as pd
 import requests
 from web3 import Web3
+from decimal import Decimal
 from .contracts import abis, addresses
-from .defaults import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_PRICE_IMPACT_DELTA
+from .constants import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_PRICE_IMPACT_DELTA, ETHER
 
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
@@ -159,7 +160,7 @@ class kwenta:
         """
         market_contract = self.market_contracts[token_symbol.upper()]
         wei_price = (market_contract.functions.assetPrice().call())[0]
-        usd_price = wei_price/(10**18)
+        usd_price = self.web3.from_wei(wei_price, 'ether')
         return {"usd": usd_price, "wei": wei_price}
 
     def get_current_positions(self, token_symbol: str) -> dict:
@@ -178,15 +179,21 @@ class kwenta:
         Dict: position information
         """
         market_contract = self.get_market_contract(token_symbol)
-        current_positions = market_contract.functions.positions(
+        id, last_funding_index, margin, last_price, size = market_contract.functions.positions(
             self.wallet_address).call()
         current_asset_price = self.get_current_asset_price(token_symbol)
-        if current_positions[4] < 0:
-            pnl = abs(current_asset_price['usd']* (current_positions[3]/(10**18))) - abs((current_positions[2]/(10**18))*(current_positions[3]/(10**18)))
-        else:
-            pnl = abs((current_positions[2]/(10**18))*(current_positions[3]/(10**18))) - abs(current_asset_price['usd']* (current_positions[3]/(10**18)))
-        positions_data = {"id": current_positions[0], "lastFundingIndex": current_positions[1],
-                          "margin": current_positions[2], "lastPrice": current_positions[3], "size": current_positions[4],"pnl_usd": pnl}
+        
+        # clean usd values
+        size_ether = self.web3.from_wei(size, 'ether')
+        last_price_usd = self.web3.from_wei(last_price, 'ether')
+
+        # calculate pnl
+        price_diff = current_asset_price['usd'] - last_price_usd
+        is_short = -1 if size < 0 else 1
+        pnl = size_ether * price_diff * is_short
+
+        positions_data = {"id": id, "last_funding_index": last_funding_index,
+                          "margin": margin, "last_price": last_price, "size": size,"pnl_usd": pnl}
         return positions_data
 
     # Get margin available for position
@@ -209,8 +216,8 @@ class kwenta:
         market_contract = self.get_market_contract(token_symbol)
         margin_allowed = (market_contract.functions.accessibleMargin(
             self.wallet_address).call())[0]
-        readable_amount = margin_allowed / (10**18)
-        return {"margin_remaining": margin_allowed, "readable_amount": readable_amount}
+        margin_usd = self.web3.from_wei(margin_allowed, 'ether')
+        return {"margin_remaining": margin_allowed, "margin_remaining_usd": margin_usd}
 
     # Return bool if Liquidation is possible for wallet
 
@@ -250,14 +257,15 @@ class kwenta:
         Dict with market skew information
         """
         market_contract = self.get_market_contract(token_symbol)
-        skew = market_contract.functions.marketSizes().call()
-        if skew[0]+skew[1] == 0:
+        long, short = market_contract.functions.marketSizes().call()
+        total = long+short
+        if total == 0:
             percent_long = 0
             percent_short = 0
         else:
-            percent_long = skew[0]/(skew[0]+skew[1])*100
-            percent_short = skew[1]/(skew[0]+skew[1])*100
-        return {"long": skew[0], "short": skew[1], "percent_long": percent_long, "percent_short": percent_short}
+            percent_long = long/total*100
+            percent_short = short/total*100
+        return {"long": long, "short": short, "percent_long": percent_long, "percent_short": percent_short}
 
     # Gets current sUSD Balance in wallet
     def get_susd_balance(self) -> dict:
@@ -273,9 +281,9 @@ class kwenta:
         ----------
         Dict: wei and usd sUSD balance
         """
-        wei_balance = self.susd_token.functions.balanceOf(self.wallet_address).call()
-        usd_balance = wei_balance/(10**18)
-        return {"wei_balance": wei_balance, "usd_balance": usd_balance}
+        balance = self.susd_token.functions.balanceOf(self.wallet_address).call()
+        balance_usd = self.web3.from_wei(balance, 'ether')
+        return {"balance": balance, "balance_usd": balance_usd}
 
     # Transfers SUSD from wallet to Margin account
 
@@ -296,11 +304,16 @@ class kwenta:
         ----------
         str: token transfer Tx id 
         """
-        token_amount = (token_amount)*(10**18)
+        if token_amount == 0:
+            raise Exception("Can not transfer 0 margin")
+
+        is_withdrawal = -1 if token_amount < 0 else 1
+        token_amount = self.web3.to_wei(abs(token_amount), 'ether') * is_withdrawal
+
         susd_balance = self.get_susd_balance()
         market_contract = self.get_market_contract(token_symbol)
-        print(f"SUSD Available: {susd_balance['usd_balance']}")
-        if (token_amount < susd_balance['wei_balance']):
+        print(f"sUSD Balance: {susd_balance['balance_usd']}")
+        if (token_amount < susd_balance['balance']):
             data_tx = market_contract.encodeABI(
                 fn_name='transferMargin', args=[token_amount])
             transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': market_contract.address, 'from': self.wallet_address, 'gas': 1500000,
@@ -323,12 +336,10 @@ class kwenta:
 
         Attributes
         ----------
-        leverage_multiplier : int
-            leverage multiplier amount. Must be within the range 0.1 - 24.7.
-        wallet_address : str
-            wallet_address of wallet to check
         token_symbol : str
             token symbol from list of supported asset
+        leverage_multiplier : int
+            leverage multiplier amount. Must be within the range 0.1 - 24.7.
 
         Returns
         ----------
@@ -338,16 +349,16 @@ class kwenta:
             if leverage_multiplier > 24.7 or leverage_multiplier < 0.1:
                 print("Leveraged_multiplier must be within the range 0.1 - 24.7!")
                 return None
-        susd_balance = self.get_accessible_margin(token_symbol)
+        margin = self.get_accessible_margin(token_symbol)
         asset_price = self.get_current_asset_price(token_symbol)
-        print(f"SUSD Available: {susd_balance['readable_amount']}")
+        print(f"SUSD Available: {margin['margin_remaining_usd']}")
         print(f"Current Asset Price: {asset_price['usd']}")
         # Using 24.7 to cover edge cases
-        max_leverage = (
-            (susd_balance['readable_amount']/asset_price['usd'])*24.7)*(10**18)
+        max_leverage = self.web3.to_wei(
+            (margin['margin_remaining_usd']/asset_price['usd']) * Decimal(24.7), 'ether')
         print(f"Max Leveraged Asset Amount: {max_leverage}")
         leveraged_amount = (
-            (susd_balance['margin_remaining']/asset_price['wei'])*leverage_multiplier)*(10**18)
+            (margin['margin_remaining']/asset_price['wei'])*leverage_multiplier)
         return {"leveraged_amount": leveraged_amount, "max_asset_leverage": max_leverage}
 
     # Update current position with new amounts, i.e. increase/decrease position
@@ -371,7 +382,8 @@ class kwenta:
         str: token transfer Tx id 
         """
         market_contract = self.get_market_contract(token_symbol)
-        position_amount = position_amount*(10**18)
+        position_amount = self.web3.to_wei(position_amount, 'wei')
+        print(position_amount)
         current_position = self.get_current_positions(token_symbol)
         print(f"Current Position Size: {current_position['size']}")
         # check that position size is less than margin limit
