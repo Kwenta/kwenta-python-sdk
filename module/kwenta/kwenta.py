@@ -196,8 +196,6 @@ class kwenta:
                           "margin": margin, "last_price": last_price, "size": size,"pnl_usd": pnl}
         return positions_data
 
-    # Get margin available for position
-
     def get_accessible_margin(self, token_symbol: str) -> dict:
         """
         Gets available account margin
@@ -219,8 +217,6 @@ class kwenta:
         margin_usd = self.web3.from_wei(margin_allowed, 'ether')
         return {"margin_remaining": margin_allowed, "margin_remaining_usd": margin_usd}
 
-    # Return bool if Liquidation is possible for wallet
-
     def can_liquidate(self, token_symbol: str) -> dict:
         """
         Checks if Liquidation is possible for wallet
@@ -241,7 +237,6 @@ class kwenta:
             self.wallet_address).call()
         return {"liq_possible": liquidation_check, "liq_price": liquidation_price}
 
-    # Get Current market skew between shorts and longs (useful for determining market difference)
     def get_market_skew(self, token_symbol: str) -> dict:
         """
         Gets current market long/short market skew
@@ -267,7 +262,6 @@ class kwenta:
             percent_short = short/total*100
         return {"long": long, "short": short, "percent_long": percent_long, "percent_short": percent_short}
 
-    # Gets current sUSD Balance in wallet
     def get_susd_balance(self) -> dict:
         """
         Gets current sUSD Balance in wallet
@@ -284,8 +278,6 @@ class kwenta:
         balance = self.susd_token.functions.balanceOf(self.wallet_address).call()
         balance_usd = self.web3.from_wei(balance, 'ether')
         return {"balance": balance, "balance_usd": balance_usd}
-
-    # Transfers SUSD from wallet to Margin account
 
     def transfer_margin(self, token_symbol: str, token_amount: int,execute_now:bool=False) -> str:
         """
@@ -327,8 +319,6 @@ class kwenta:
             else:
                 return {"token":token_symbol.upper(),'token_amount':token_amount/(10**18),"susd_balance":susd_balance,"tx_data":transfer_tx}
 
-    # Get out amount of leverage available for account
-
     def get_leveraged_amount(self, token_symbol: str, leverage_multiplier: float) -> dict:
         """
         Get out amount of leverage available for account
@@ -360,7 +350,6 @@ class kwenta:
         leveraged_amount = (
             (margin['margin_remaining']/asset_price['wei'])*leverage_multiplier)
         return {"leveraged_amount": leveraged_amount, "max_asset_leverage": max_leverage}
-
 
     def modify_position(self, token_symbol: str, size_delta: float, slippage: float = DEFAULT_SLIPPAGE,execute_now: bool = False) -> str:
         """
@@ -407,7 +396,6 @@ class kwenta:
             else:
                 return {"token":token_symbol.upper(),'current_position':current_position['size'],"tx_data":transfer_tx}
 
-    # Close full position
     def close_position(self, token_symbol: str,slippage:float=DEFAULT_SLIPPAGE,execute_now:bool=False) -> str:
         """
         Fully closes account position 
@@ -450,8 +438,7 @@ class kwenta:
         else:
             return {"token":token_symbol.upper(),'current_position':current_position['size'],"tx_data":transfer_tx}
 
-    # Open new Position
-    def open_position(self, token_symbol: str, short: bool = False, position_amount: float = None,slippage:float=2.0,leverage_multiplier: float = None,execute_now:bool=False) -> str:
+    def open_position(self, token_symbol: str, short: bool = False, position_amount: float = None,slippage:float=DEFAULT_SLIPPAGE,leverage_multiplier: float = None,execute_now:bool=False) -> str:
         """
         Open account position in a direction
         ...
@@ -481,13 +468,16 @@ class kwenta:
         elif (position_amount != None) and (leverage_multiplier != None):
             print("Enter EITHER a position amount or a leverage multiplier!")
             return None
-        current_position = self.get_current_positions(token_symbol)
+
         market_contract = self.get_market_contract(token_symbol)
+        current_position = self.get_current_positions(token_symbol)
+        current_price = self.get_current_asset_price(token_symbol)
+
         # starting at zero otherwise use Update position
         if current_position['size'] != 0:
-            print(f"You are already in Position, use modify_position() instead.")
+            print(f"You are already in a position, use modify_position() instead.")
             print(
-                f"Current Position Size: {(current_position['size'])/(10**18)}")
+                f"Current Position Size: {self.web3.from_wei(current_position['size'], 'ether')}")
             return None
         if leverage_multiplier:
             max_leverage = self.get_leveraged_amount(token_symbol,leverage_multiplier)['max_asset_leverage']
@@ -505,16 +495,12 @@ class kwenta:
             return None
         # checking available margin to make sure this is possible
         if (abs(position_amount) < max_leverage):
-            #Calculate slippage position
-            asset_price = self.get_current_asset_price(token_symbol)
-            #check long position and calculate upper band slip
-            if position_amount > 0:
-                desiredFillPrice = (asset_price['wei'] * (slippage/100)) + asset_price['wei']
-            #check short position and calculate lower band slip
-            else:
-                desiredFillPrice = asset_price['wei'] - (asset_price['wei'] * (slippage/100))
+            is_short = -1 if -current_position['size'] < 0 else 1
+            desired_fill_price = int(
+                current_price['wei'] + current_price['wei'] * (slippage/100) * is_short)
+
             data_tx = market_contract.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
-                int(position_amount), desiredFillPrice, DEFAULT_TRACKING_CODE])
+                int(position_amount), desired_fill_price, DEFAULT_TRACKING_CODE])
             transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': market_contract.address, 'from': self.wallet_address, 'gas': 1500000,
                            'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
             if execute_now:
@@ -526,8 +512,7 @@ class kwenta:
             else:
                 return {"token":token_symbol.upper(),'position_size':position_amount/(10**18),'current_position':current_position['size'],"max_leverage":max_leverage/(10**18),"leveraged_percent":(position_amount/max_leverage)*100,"tx_data":transfer_tx}
 
-    # open an order with a specific limit amount
-    def open_limit(self, token_symbol: str, limit_price: float, position_amount: float = None, leverage_multiplier: float = None, slippage:float=2.0, short: bool = False) -> str:
+    def open_limit(self, token_symbol: str, limit_price: float, position_amount: float = None, leverage_multiplier: float = None, slippage:float=DEFAULT_SLIPPAGE, short: bool = False) -> str:
         """
         Open Limit position in a direction
         ...
@@ -558,44 +543,42 @@ class kwenta:
         elif (position_amount != None) and (leverage_multiplier != None):
             print("Enter EITHER a position amount or a leverage multiplier!")
             return None
-        current_pos = self.get_current_positions(token_symbol)
+        current_position = self.get_current_positions(token_symbol)
         current_price = self.get_current_asset_price(token_symbol)['usd']
-        if current_pos['size'] != 0:
-            print(f"Already in position! {current_pos['size']/(10**18)}")
+        if current_position['size'] != 0:
+            print(f"Already in position! {current_position['size']/(10**18)}")
             return None
         #Calculate slippage position
         asset_price = self.get_current_asset_price(token_symbol)
         #check long position and calculate upper band slip
         if short == False:
-            desiredFillPrice = (asset_price['wei'] * (slippage/100)) + asset_price['wei']
+            desired_fill_price = (asset_price['wei'] * (slippage/100)) + asset_price['wei']
         #check short position and calculate lower band slip
         else:
-            desiredFillPrice = asset_price['wei'] - (asset_price['wei'] * (slippage/100))
+            desired_fill_price = asset_price['wei'] - (asset_price['wei'] * (slippage/100))
         # Case for position_amount manually set
         if position_amount != None:
             position_amount = position_amount*(10**18)
             #check Short Position
             if short == True:
                 if current_price >= limit_price:
-                    return self.open_position(token_symbol,short=True, slippage=desiredFillPrice, position_amount=position_amount)
+                    return self.open_position(token_symbol,short=True, slippage=desired_fill_price, position_amount=position_amount)
             else:
                 if current_price <= limit_price:
-                    return self.open_position(token_symbol, short=False, slippage=desiredFillPrice, position_amount=position_amount)
+                    return self.open_position(token_symbol, short=False, slippage=desired_fill_price, position_amount=position_amount)
         # Case for Leverage Multiplier
         else:
             if short == True:
                 if current_price >= limit_price:
-                    return self.open_position(token_symbol, short=True,  slippage=desiredFillPrice,leverage_multiplier=leverage_multiplier)
+                    return self.open_position(token_symbol, short=True,  slippage=desired_fill_price,leverage_multiplier=leverage_multiplier)
             else:
                 if current_price <= limit_price:
-                    return self.open_position(token_symbol, short=False, slippage=desiredFillPrice, leverage_multiplier=leverage_multiplier)
+                    return self.open_position(token_symbol, short=False, slippage=desired_fill_price, leverage_multiplier=leverage_multiplier)
         print(
-            f"Limit not reached current : {current_price} | Entry: {current_pos['lastPrice']/(10**18)} | Limit: {limit_price}")
+            f"Limit not reached current : {current_price} | Entry: {current_position['lastPrice']/(10**18)} | Limit: {limit_price}")
         return None
 
-    # Close with Limit
-
-    def close_limit(self, token_symbol: str, limit_price: float,slippage:float=2.0, short: bool = False):
+    def close_limit(self, token_symbol: str, limit_price: float,slippage:float=DEFAULT_SLIPPAGE, short: bool = False):
         """
         Close Limit position in a direction
         ...
@@ -616,30 +599,28 @@ class kwenta:
         ----------
         str: token transfer Tx id 
         """
-        current_pos = self.get_current_positions(token_symbol)
+        current_position = self.get_current_positions(token_symbol)
         current_price = self.get_current_asset_price(token_symbol)
         # Check if you are in Position
-        if current_pos['size'] == 0:
+        if current_position['size'] == 0:
             print("Not in position!")
             return None
         #check long position and calculate upper band slip
         if short == False:
-            desiredFillPrice = (current_price['wei'] * (slippage/100)) + current_price['wei']
+            desired_fill_price = (current_price['wei'] * (slippage/100)) + current_price['wei']
         #check short position and calculate lower band slip
         else:
-            desiredFillPrice = current_price['wei'] - (current_price['wei'] * (slippage/100))
+            desired_fill_price = current_price['wei'] - (current_price['wei'] * (slippage/100))
         # Check short value
         if short == True:
             if current_price['usd'] <= limit_price:
-                return self.close_position(token_symbol,slippage=desiredFillPrice)
+                return self.close_position(token_symbol,slippage=desired_fill_price)
         else:
             if current_price['usd'] >= limit_price:
-                return self.close_position(token_symbol,slippage=desiredFillPrice)
+                return self.close_position(token_symbol,slippage=desired_fill_price)
         print(
-            f"Limit not reached current : {current_price['usd']} | Entry: {current_pos['lastPrice']/(10**18)} | Limit: {limit_price}")
+            f"Limit not reached current : {current_price['usd']} | Entry: {current_position['lastPrice']/(10**18)} | Limit: {limit_price}")
         return None
-
-    # Close Order with Stop Limit
 
     def close_stop_limit(self, token_symbol: str, limit_price: float, stop_price: float,slippage:float=2.0,short: bool = False) -> str:
         """
@@ -673,21 +654,21 @@ class kwenta:
     
         #check long position and calculate upper band slip
         if short == False:
-            desiredFillPrice = (current_price['wei'] * (slippage/100)) + current_price['wei']
+            desired_fill_price = (current_price['wei'] * (slippage/100)) + current_price['wei']
         #check short position and calculate lower band slip
         else:
-            desiredFillPrice = current_price['wei'] - (current_price['wei'] * (slippage/100))
+            desired_fill_price = current_price['wei'] - (current_price['wei'] * (slippage/100))
         # Check short value
         if short == True:
             if current_price['usd'] <= limit_price:
-                return self.close_position(token_symbol,slippage=desiredFillPrice)
+                return self.close_position(token_symbol,slippage=desired_fill_price)
             elif current_price['usd'] >= stop_price:
-                return self.close_position(token_symbol,slippage=desiredFillPrice)
+                return self.close_position(token_symbol,slippage=desired_fill_price)
         else:
             if current_price['usd'] >= limit_price:
-                return self.close_position(token_symbol,slippage=desiredFillPrice)
+                return self.close_position(token_symbol,slippage=desired_fill_price)
             elif current_price['usd'] <= stop_price:
-                return self.close_position(token_symbol,slippage=desiredFillPrice)
+                return self.close_position(token_symbol,slippage=desired_fill_price)
         print(
             f"Limit not reached current : {current_price['usd']} | Entry: {current_pos['lastPrice']/(10**18)} | Limit: {limit_price} | Stop Limit: {stop_price}")
         return None
