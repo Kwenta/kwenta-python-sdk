@@ -1,14 +1,11 @@
 import time
 import warnings
-import pandas as pd
 import requests
 from web3 import Web3
 from decimal import Decimal
 from .contracts import abis, addresses
 from .constants import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_SLIPPAGE
 
-pd.set_option('display.max_rows', None)
-pd.set_option('display.max_columns', None)
 warnings.filterwarnings('ignore')
 
 class kwenta:
