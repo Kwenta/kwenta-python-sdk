@@ -495,9 +495,8 @@ class kwenta:
             return None
         # checking available margin to make sure this is possible
         if (abs(position_amount) < max_leverage):
-            is_short = -1 if -current_position['size'] < 0 else 1
             desired_fill_price = int(
-                current_price['wei'] + current_price['wei'] * (slippage/100) * is_short)
+                current_price['wei'] + current_price['wei'] * (slippage/100) * short)
 
             data_tx = market_contract.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
                 int(position_amount), desired_fill_price, DEFAULT_TRACKING_CODE])
@@ -511,8 +510,9 @@ class kwenta:
                 return tx_token
             else:
                 return {"token":token_symbol.upper(),'position_size':position_amount/(10**18),'current_position':current_position['size'],"max_leverage":max_leverage/(10**18),"leveraged_percent":(position_amount/max_leverage)*100,"tx_data":transfer_tx}
+        return 'some'
 
-    def open_limit(self, token_symbol: str, limit_price: float, position_amount: float = None, leverage_multiplier: float = None, slippage:float=DEFAULT_SLIPPAGE, short: bool = False) -> str:
+    def open_limit(self, token_symbol: str, limit_price: float, position_amount: float = None, leverage_multiplier: float = None, slippage: float = DEFAULT_SLIPPAGE, short: bool = False, execute_now: bool = False) -> str:
         """
         Open Limit position in a direction
         ...
@@ -543,56 +543,87 @@ class kwenta:
         elif (position_amount != None) and (leverage_multiplier != None):
             print("Enter EITHER a position amount or a leverage multiplier!")
             return None
+
         current_position = self.get_current_positions(token_symbol)
-        current_price = self.get_current_asset_price(token_symbol)['usd']
+        current_price = self.get_current_asset_price(token_symbol)
+
         if current_position['size'] != 0:
-            print(f"Already in position! {current_position['size']/(10**18)}")
+            print(f"You are already in a position, use modify_position() instead.")
+            print(
+                f"Current Position Size: {self.web3.from_wei(current_position['size'], 'ether')}")
             return None
-        #Calculate slippage position
-        asset_price = self.get_current_asset_price(token_symbol)
-        #check long position and calculate upper band slip
-        if short == False:
-            desired_fill_price = (asset_price['wei'] * (slippage/100)) + asset_price['wei']
-        #check short position and calculate lower band slip
-        else:
-            desired_fill_price = asset_price['wei'] - (asset_price['wei'] * (slippage/100))
+
         # Case for position_amount manually set
         if position_amount != None:
-            position_amount = position_amount*(10**18)
             #check Short Position
             if short == True:
-                if current_price >= limit_price:
-                    return self.open_position(token_symbol,short=True, slippage=desired_fill_price, position_amount=position_amount)
+                if current_price['usd'] >= limit_price:
+                    return self.open_position(token_symbol,short=True, slippage=slippage, position_amount=position_amount, execute_now=execute_now)
             else:
-                if current_price <= limit_price:
-                    return self.open_position(token_symbol, short=False, slippage=desired_fill_price, position_amount=position_amount)
+                if current_price['usd'] <= limit_price:
+                    return self.open_position(token_symbol, short=False, slippage=slippage, position_amount=position_amount, execute_now=execute_now)
+        
         # Case for Leverage Multiplier
         else:
             if short == True:
-                if current_price >= limit_price:
-                    return self.open_position(token_symbol, short=True,  slippage=desired_fill_price,leverage_multiplier=leverage_multiplier)
+                if current_price['usd'] >= limit_price:
+                    return self.open_position(token_symbol, short=True,  slippage=slippage,leverage_multiplier=leverage_multiplier, execute_now=execute_now)
             else:
-                if current_price <= limit_price:
-                    return self.open_position(token_symbol, short=False, slippage=desired_fill_price, leverage_multiplier=leverage_multiplier)
+                if current_price['usd'] <= limit_price:
+                    return self.open_position(token_symbol, short=False, slippage=slippage, leverage_multiplier=leverage_multiplier, execute_now=execute_now)
         print(
-            f"Limit not reached current : {current_price} | Entry: {current_position['lastPrice']/(10**18)} | Limit: {limit_price}")
+            f"Limit not reached current : {current_price} | Entry: {current_position['last_price']/(10**18)} | Limit: {limit_price}")
         return None
 
-    def close_limit(self, token_symbol: str, limit_price: float,slippage:float=DEFAULT_SLIPPAGE, short: bool = False):
+    def close_limit(self, token_symbol: str, limit_price: float, slippage:float=DEFAULT_SLIPPAGE, execute_now:bool=False):
         """
         Close Limit position in a direction
         ...
 
         Attributes
         ----------
-        wallet_address : str
-            wallet_address of wallet to check
         token_symbol : str
             token symbol from list of supported asset
-        short : bool, optional 
-            set to True when creating a short. (Implemented to double check side)
         limit_price : float
             limit price in *dollars* to open position. 
+        slippage : float
+            slippage percentage
+        Returns
+        ----------
+        str: token transfer Tx id 
+        """
+        current_position = self.get_current_positions(token_symbol)
+        current_price = self.get_current_asset_price(token_symbol)
+
+        # Check if you are in Position
+        if current_position['size'] == 0:
+            print("Not in position!")
+            return None
+        
+        short = True if current_position['size'] < 0 else False
+        if short == True:
+            if current_price['usd'] <= limit_price:
+                return self.close_position(token_symbol,slippage=slippage, execute_now=execute_now)
+        else:
+            if current_price['usd'] >= limit_price:
+                return self.close_position(token_symbol,slippage=slippage, execute_now=execute_now)
+        print(
+            f"Limit not reached current : {current_price['usd']} | Entry: {current_position['last_price']/(10**18)} | Limit: {limit_price}")
+        return None
+
+    def close_stop_limit(self, token_symbol: str, limit_price: float, stop_price: float,slippage:float=DEFAULT_SLIPPAGE) -> str:
+        """
+        Close Limit position in a direction with Stop price
+        ...
+
+        Attributes
+        ----------
+        token_symbol : str
+            token symbol from list of supported asset
+        limit_price : float
+            limit price in dollars to open position. 
+        stop_price : float 
+            Set to stop price incase of bad position, will exit position if triggered 
         slippage : float
             slippage percentage
         Returns
@@ -605,72 +636,20 @@ class kwenta:
         if current_position['size'] == 0:
             print("Not in position!")
             return None
-        #check long position and calculate upper band slip
-        if short == False:
-            desired_fill_price = (current_price['wei'] * (slippage/100)) + current_price['wei']
-        #check short position and calculate lower band slip
-        else:
-            desired_fill_price = current_price['wei'] - (current_price['wei'] * (slippage/100))
-        # Check short value
-        if short == True:
-            if current_price['usd'] <= limit_price:
-                return self.close_position(token_symbol,slippage=desired_fill_price)
-        else:
-            if current_price['usd'] >= limit_price:
-                return self.close_position(token_symbol,slippage=desired_fill_price)
-        print(
-            f"Limit not reached current : {current_price['usd']} | Entry: {current_position['lastPrice']/(10**18)} | Limit: {limit_price}")
-        return None
-
-    def close_stop_limit(self, token_symbol: str, limit_price: float, stop_price: float,slippage:float=2.0,short: bool = False) -> str:
-        """
-        Close Limit position in a direction with Stop price
-        ...
-
-        Attributes
-        ----------
-        wallet_address : str
-            wallet_address of wallet to check
-        token_symbol : str
-            token symbol from list of supported asset
-        short : bool, optional 
-            set to True when creating a short. (Implemented to double check side)
-        limit_price : float
-            limit price in dollars to open position. 
-        stop_price : float 
-            Set to stop price incase of bad position, will exit position if triggered 
-        slippage : float
-            slippage percentage
-        Returns
-        ----------
-        str: token transfer Tx id 
-        """
-        current_pos = self.get_current_positions(token_symbol)
-        current_price = self.get_current_asset_price(token_symbol)
-        # Check if you are in Position
-        if current_pos['size'] == 0:
-            print("Not in position!")
-            return None
     
-        #check long position and calculate upper band slip
-        if short == False:
-            desired_fill_price = (current_price['wei'] * (slippage/100)) + current_price['wei']
-        #check short position and calculate lower band slip
-        else:
-            desired_fill_price = current_price['wei'] - (current_price['wei'] * (slippage/100))
-        # Check short value
+        short = True if current_position['size'] < 0 else False
         if short == True:
             if current_price['usd'] <= limit_price:
-                return self.close_position(token_symbol,slippage=desired_fill_price)
+                return self.close_position(token_symbol,slippage=slippage)
             elif current_price['usd'] >= stop_price:
-                return self.close_position(token_symbol,slippage=desired_fill_price)
+                return self.close_position(token_symbol,slippage=slippage)
         else:
             if current_price['usd'] >= limit_price:
-                return self.close_position(token_symbol,slippage=desired_fill_price)
+                return self.close_position(token_symbol,slippage=slippage)
             elif current_price['usd'] <= stop_price:
-                return self.close_position(token_symbol,slippage=desired_fill_price)
+                return self.close_position(token_symbol,slippage=slippage)
         print(
-            f"Limit not reached current : {current_price['usd']} | Entry: {current_pos['lastPrice']/(10**18)} | Limit: {limit_price} | Stop Limit: {stop_price}")
+            f"Limit not reached current : {current_price['usd']} | Entry: {current_position['last_price']/(10**18)} | Limit: {limit_price} | Stop Limit: {stop_price}")
         return None
 
     def get_historicals(self, token_symbol, time_back=72, period=1800):
