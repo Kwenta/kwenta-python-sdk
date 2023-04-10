@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 pio.renderers.default = 'browser'
 
+
 def get_candlestick_plot_simple(df: pd.DataFrame, ticker: str):
     fig = make_subplots(
         rows=2,
