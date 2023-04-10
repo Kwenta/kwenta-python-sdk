@@ -4,15 +4,22 @@ import requests
 from web3 import Web3
 from web3.types import TxParams
 from decimal import Decimal
-from .contracts import abis, addresses
 from .constants import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_SLIPPAGE
+from .contracts import abis, addresses
+from .alerts import Alerts
 
 warnings.filterwarnings('ignore')
 
 
-class kwenta:
-    def __init__(self, provider_rpc: str, wallet_address: str,
-                 private_key: str = None, network_id: int = None):
+class Kwenta:
+    def __init__(
+            self,
+            provider_rpc: str,
+            wallet_address: str,
+            private_key: str = None,
+            network_id: int = None,
+            telegram_token: str = None,
+            telegram_channel_name: str = None):
         # set default values
         if network_id is None:
             network_id = DEFAULT_NETWORK_ID
@@ -32,6 +39,10 @@ class kwenta:
         # init contracts
         self.markets, self.market_contracts, self.susd_token = self._load_markets()
         self.token_list = list(self.markets.keys())
+
+        # init alerts
+        if telegram_token and telegram_channel_name:
+            self.alerts = Alerts(telegram_token, telegram_channel_name)
 
     def _load_markets(self):
         """
@@ -81,6 +92,24 @@ class kwenta:
             addresses['sUSD'][self.network_id]), abi=abis['sUSD'])
 
         return markets, market_contracts, susd_token
+
+    def _get_tx_params(
+        self, value=0, to=None
+    ) -> TxParams:
+        """Get generic transaction parameters."""
+        params: TxParams = {
+            'from': self.wallet_address,
+            'to': to,
+            'chainId': self.network_id,
+            'value': value,
+            'gas': 1500000,
+            'gasPrice': self.web3.to_wei(
+                '0.4',
+                'gwei'),
+            'nonce': self.web3.eth.get_transaction_count(self.wallet_address)
+        }
+
+        return params
 
     def get_market_contract(self, token_symbol: str):
         """
