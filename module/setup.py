@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 setup(
     name='kwenta',
-    version='1.0.1',
+    version='1.0.2',
     description='Python SDK for Kwenta',
     long_description='Python SDK for Kwenta',
     author='Kwenta DAO',
@@ -26,6 +26,3 @@ setup(
     package_data={"kwenta": ["json/*"]},
     include_package_data=True,
 )
-# Local Install
-# python .\setup.py sdist bdist_wheel
-# pip install .

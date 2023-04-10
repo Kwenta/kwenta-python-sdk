@@ -1,12 +1,12 @@
 import time
 import warnings
-import requests
 from web3 import Web3
 from web3.types import TxParams
 from decimal import Decimal
-from .constants import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_SLIPPAGE
+from .constants import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_SLIPPAGE, DEFAULT_GQL_ENDPOINT_PERPS, DEFAULT_GQL_ENDPOINT_RATES
 from .contracts import abis, addresses
 from .alerts import Alerts
+from .queries import Queries
 
 warnings.filterwarnings('ignore')
 
@@ -18,6 +18,8 @@ class Kwenta:
             wallet_address: str,
             private_key: str = None,
             network_id: int = None,
+            gql_endpoint_perps: str = None,
+            gql_endpoint_rates: str = None,
             telegram_token: str = None,
             telegram_channel_name: str = None):
         # set default values
@@ -43,6 +45,17 @@ class Kwenta:
         # init alerts
         if telegram_token and telegram_channel_name:
             self.alerts = Alerts(telegram_token, telegram_channel_name)
+
+        # init queries
+        if not gql_endpoint_perps:
+            gql_endpoint_perps = DEFAULT_GQL_ENDPOINT_PERPS[self.network_id]
+
+        if not gql_endpoint_rates:
+            gql_endpoint_rates = DEFAULT_GQL_ENDPOINT_RATES[self.network_id]
+
+        self.queries = Queries(
+            gql_endpoint_perps=gql_endpoint_perps,
+            gql_endpoint_rates=gql_endpoint_rates)
 
     def _load_markets(self):
         """
@@ -558,7 +571,7 @@ class Kwenta:
             is_short = -1 if size_delta < 0 else 1
             size_delta = self.web3.to_wei(abs(size_delta), 'ether') * is_short
         # check side
-        if short & is_short != True:
+        if short == True & is_short != True:
             print(
                 "Position size is Negative & Short set to False! Double Check intention.")
             return None
@@ -769,37 +782,3 @@ class Kwenta:
         print(
             f"Limit not reached current : {current_price['usd']} | Entry: {current_position['last_price']/(10**18)} | Limit: {limit_price} | Stop Limit: {stop_price}")
         return None
-
-    def get_historicals(self, token_symbol, time_back=72, period=1800):
-        """
-        Gets historical data from subgraph
-        ...
-
-        Attributes
-        ----------
-        token_symbol : str
-            token symbol from list of supported asset
-        time_back : int
-            How many hours back to get historical data from
-        period : int
-            Timescale of candles in seconds
-
-        Returns
-        ----------
-        str: token transfer Tx id
-        """
-        current_timestamp = int(time.time())
-        # Subtract 4 hours from current timestamp
-        day_ago = current_timestamp - (time_back * 60 * 60)
-        url = f'https://api.thegraph.com/subgraphs/name/kwenta/optimism-latest-rates'
-        headers = {'accept': 'application/json, text/plain, */*',
-                   'content-type': 'application/json'}
-        payload = {
-            "query": f"{{candles(first:1000,where:{{synth:\"{token_symbol.upper()}\",timestamp_gt:{day_ago},timestamp_lt:{current_timestamp},period:{period}}},orderBy:\"timestamp\",orderDirection:\"asc\"){{id synth open high low close timestamp average period aggregatedPrices}}}}"
-        }
-        try:
-            response = requests.post(url, headers=headers, json=payload)
-            return response.json()
-        except Exception as e:
-            print(e)
-            return None
