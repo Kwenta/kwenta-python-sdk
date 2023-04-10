@@ -2,6 +2,7 @@ import time
 import warnings
 import requests
 from web3 import Web3
+from web3.types import TxParams
 from decimal import Decimal
 from .contracts import abis, addresses
 from .constants import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_SLIPPAGE
@@ -71,11 +72,13 @@ class kwenta:
             token_symbol = market[2].decode('utf-8').strip("\x00")[1:-4]
             markets[token_symbol] = normalized_market
             market_contracts[token_symbol] = self.web3.eth.contract(
-                self.web3.to_checksum_address(normalized_market['market_address']), abi=abis['PerpsV2Market'])
+                self.web3.to_checksum_address(
+                    normalized_market['market_address']),
+                abi=abis['PerpsV2Market'])
 
         # load sUSD contract
-        susd_token = self.web3.eth.contract(
-            self.web3.to_checksum_address(addresses['sUSD'][self.network_id]), abi=abis['sUSD'])
+        susd_token = self.web3.eth.contract(self.web3.to_checksum_address(
+            addresses['sUSD'][self.network_id]), abi=abis['sUSD'])
 
         return markets, market_contracts, susd_token
 
@@ -90,8 +93,10 @@ class kwenta:
             token symbol from list of supported asset
         """
         # load market contracts
-        proxy_contract = self.web3.eth.contract(self.web3.to_checksum_address(
-            self.markets[token_symbol]['market_address']), abi=abis['PerpsV2Market'])
+        proxy_contract = self.web3.eth.contract(
+            self.web3.to_checksum_address(
+                self.markets[token_symbol]['market_address']),
+            abi=abis['PerpsV2Market'])
         return proxy_contract
 
     def get_market_contract(self, token_symbol: str):
@@ -193,8 +198,13 @@ class kwenta:
         price_diff = current_asset_price['usd'] - last_price_usd
         pnl = size_ether * price_diff * is_short
 
-        positions_data = {"id": id, "last_funding_index": last_funding_index,
-                          "margin": margin, "last_price": last_price, "size": size, "pnl_usd": pnl}
+        positions_data = {
+            "id": id,
+            "last_funding_index": last_funding_index,
+            "margin": margin,
+            "last_price": last_price,
+            "size": size,
+            "pnl_usd": pnl}
         return positions_data
 
     def get_accessible_margin(self, token_symbol: str) -> dict:
@@ -315,8 +325,18 @@ class kwenta:
         if (token_amount < susd_balance['balance']):
             data_tx = market_contract.encodeABI(
                 fn_name='transferMargin', args=[token_amount])
-            transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': market_contract.address, 'from': self.wallet_address, 'gas': 1500000,
-                           'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
+            transfer_tx = {
+                'value': 0,
+                'chainId': self.network_id,
+                'to': market_contract.address,
+                'from': self.wallet_address,
+                'gas': 1500000,
+                'gasPrice': self.web3.to_wei(
+                    '0.4',
+                    'gwei'),
+                'nonce': self.web3.eth.get_transaction_count(
+                    self.wallet_address),
+                'data': data_tx}
             if execute_now:
                 tx_token = self.execute_transaction(transfer_tx)
                 print(f"Updating Position by {token_amount}")
@@ -324,8 +344,10 @@ class kwenta:
                 time.sleep(1)
                 return tx_token
             else:
-                return {"token": token_symbol.upper(), 'token_amount': token_amount /
-                        (10**18), "susd_balance": susd_balance, "tx_data": transfer_tx}
+                return {"token": token_symbol.upper(),
+                        'token_amount': token_amount / (10**18),
+                        "susd_balance": susd_balance,
+                        "tx_data": transfer_tx}
 
     def get_leveraged_amount(self, token_symbol: str,
                              leverage_multiplier: float) -> dict:
@@ -354,15 +376,24 @@ class kwenta:
         print(f"Current Asset Price: {asset_price['usd']}")
         # Using 24.7 to cover edge cases
         max_leverage = self.web3.to_wei(
-            (margin['margin_remaining_usd'] / asset_price['usd']) * Decimal(24.7), 'ether')
+            (margin['margin_remaining_usd'] /
+             asset_price['usd']) *
+            Decimal(24.7),
+            'ether')
         print(f"Max Leveraged Asset Amount: {max_leverage}")
         leveraged_amount = (
-            (margin['margin_remaining'] / asset_price['wei']) * leverage_multiplier)
+            (margin['margin_remaining'] /
+             asset_price['wei']) *
+            leverage_multiplier)
         return {"leveraged_amount": leveraged_amount,
                 "max_asset_leverage": max_leverage}
 
-    def modify_position(self, token_symbol: str, size_delta: float,
-                        slippage: float = DEFAULT_SLIPPAGE, execute_now: bool = False) -> str:
+    def modify_position(
+            self,
+            token_symbol: str,
+            size_delta: float,
+            slippage: float = DEFAULT_SLIPPAGE,
+            execute_now: bool = False) -> str:
         """
         Submits a delayed offchain order with a size of `size_delta`
         ...
@@ -392,10 +423,21 @@ class kwenta:
             current_price['wei'] + current_price['wei'] * (slippage / 100) * is_short)
 
         print(f"Current Position Size: {current_position['size']}")
-        data_tx = market_contract.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
-            int(size_delta), desired_fill_price, DEFAULT_TRACKING_CODE])
-        transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': market_contract.address, 'from': self.wallet_address, 'gas': 1500000,
-                       'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
+        data_tx = market_contract.encodeABI(
+            fn_name='submitOffchainDelayedOrderWithTracking', args=[
+                int(size_delta), desired_fill_price, DEFAULT_TRACKING_CODE])
+        transfer_tx = {
+            'value': 0,
+            'chainId': self.network_id,
+            'to': market_contract.address,
+            'from': self.wallet_address,
+            'gas': 1500000,
+            'gasPrice': self.web3.to_wei(
+                '0.4',
+                'gwei'),
+            'nonce': self.web3.eth.get_transaction_count(
+                self.wallet_address),
+            'data': data_tx}
 
         print(f"Updating Position by {size_delta}")
         if execute_now:
@@ -404,11 +446,16 @@ class kwenta:
             time.sleep(1)
             return tx_token
         else:
-            return {"token": token_symbol.upper(
-            ), 'current_position': current_position['size'], "tx_data": transfer_tx}
+            return {
+                "token": token_symbol.upper(),
+                'current_position': current_position['size'],
+                "tx_data": transfer_tx}
 
-    def close_position(self, token_symbol: str,
-                       slippage: float = DEFAULT_SLIPPAGE, execute_now: bool = False) -> str:
+    def close_position(
+            self,
+            token_symbol: str,
+            slippage: float = DEFAULT_SLIPPAGE,
+            execute_now: bool = False) -> str:
         """
         Fully closes account position
         ...
@@ -437,10 +484,21 @@ class kwenta:
             print("Not in position!")
             return None
         # Flip position size to the opposite direction
-        data_tx = market_contract.encodeABI(fn_name='submitCloseOffchainDelayedOrderWithTracking', args=[
-            desired_fill_price, DEFAULT_TRACKING_CODE])
-        transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': market_contract.address, 'from': self.wallet_address, 'gas': 1500000,
-                       'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
+        data_tx = market_contract.encodeABI(
+            fn_name='submitCloseOffchainDelayedOrderWithTracking', args=[
+                desired_fill_price, DEFAULT_TRACKING_CODE])
+        transfer_tx = {
+            'value': 0,
+            'chainId': self.network_id,
+            'to': market_contract.address,
+            'from': self.wallet_address,
+            'gas': 1500000,
+            'gasPrice': self.web3.to_wei(
+                '0.4',
+                'gwei'),
+            'nonce': self.web3.eth.get_transaction_count(
+                self.wallet_address),
+            'data': data_tx}
         if execute_now:
             tx_token = self.execute_transaction(transfer_tx)
             print(f"Closing Position by {-current_position['size']}")
@@ -448,11 +506,19 @@ class kwenta:
             time.sleep(1)
             return tx_token
         else:
-            return {"token": token_symbol.upper(
-            ), 'current_position': current_position['size'], "tx_data": transfer_tx}
+            return {
+                "token": token_symbol.upper(),
+                'current_position': current_position['size'],
+                "tx_data": transfer_tx}
 
-    def open_position(self, token_symbol: str, short: bool = False, size_delta: float = None,
-                      slippage: float = DEFAULT_SLIPPAGE, leverage_multiplier: float = None, execute_now: bool = False) -> str:
+    def open_position(
+            self,
+            token_symbol: str,
+            short: bool = False,
+            size_delta: float = None,
+            slippage: float = DEFAULT_SLIPPAGE,
+            leverage_multiplier: float = None,
+            execute_now: bool = False) -> str:
         """
         Open account position in a direction
         ...
@@ -508,7 +574,7 @@ class kwenta:
             is_short = -1 if size_delta < 0 else 1
             size_delta = self.web3.to_wei(abs(size_delta), 'ether') * is_short
         # check side
-        if short == True & is_short != True:
+        if short & is_short != True:
             print(
                 "Position size is Negative & Short set to False! Double Check intention.")
             return None
@@ -517,10 +583,21 @@ class kwenta:
             desired_fill_price = int(
                 current_price['wei'] + current_price['wei'] * (slippage / 100) * is_short)
 
-            data_tx = market_contract.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
-                int(size_delta), desired_fill_price, DEFAULT_TRACKING_CODE])
-            transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': market_contract.address, 'from': self.wallet_address, 'gas': 1500000,
-                           'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
+            data_tx = market_contract.encodeABI(
+                fn_name='submitOffchainDelayedOrderWithTracking', args=[
+                    int(size_delta), desired_fill_price, DEFAULT_TRACKING_CODE])
+            transfer_tx = {
+                'value': 0,
+                'chainId': self.network_id,
+                'to': market_contract.address,
+                'from': self.wallet_address,
+                'gas': 1500000,
+                'gasPrice': self.web3.to_wei(
+                    '0.4',
+                    'gwei'),
+                'nonce': self.web3.eth.get_transaction_count(
+                    self.wallet_address),
+                'data': data_tx}
             if execute_now:
                 tx_token = self.execute_transaction(transfer_tx)
                 print(f"Updating Position by {size_delta}")
@@ -528,12 +605,23 @@ class kwenta:
                 time.sleep(1)
                 return tx_token
             else:
-                return {"token": token_symbol.upper(), 'position_size': size_delta / (10**18), 'current_position': current_position['size'], "max_leverage": max_leverage / (
-                    10**18), "leveraged_percent": (size_delta / max_leverage) * 100, "tx_data": transfer_tx}
+                return {"token": token_symbol.upper(),
+                        'position_size': size_delta / (10**18),
+                        'current_position': current_position['size'],
+                        "max_leverage": max_leverage / (10**18),
+                        "leveraged_percent": (size_delta / max_leverage) * 100,
+                        "tx_data": transfer_tx}
         return 'some'
 
-    def open_limit(self, token_symbol: str, limit_price: float, size_delta: float = None, leverage_multiplier: float = None,
-                   slippage: float = DEFAULT_SLIPPAGE, short: bool = False, execute_now: bool = False) -> str:
+    def open_limit(
+            self,
+            token_symbol: str,
+            limit_price: float,
+            size_delta: float = None,
+            leverage_multiplier: float = None,
+            slippage: float = DEFAULT_SLIPPAGE,
+            short: bool = False,
+            execute_now: bool = False) -> str:
         """
         Open Limit position in a direction
         ...
@@ -577,31 +665,51 @@ class kwenta:
         # Case for position_amount manually set
         if size_delta is not None:
             # check Short Position
-            if short == True:
+            if short:
                 if current_price['usd'] >= limit_price:
                     return self.open_position(
-                        token_symbol, short=True, slippage=slippage, size_delta=size_delta, execute_now=execute_now)
+                        token_symbol,
+                        short=True,
+                        slippage=slippage,
+                        size_delta=size_delta,
+                        execute_now=execute_now)
             else:
                 if current_price['usd'] <= limit_price:
                     return self.open_position(
-                        token_symbol, short=False, slippage=slippage, size_delta=size_delta, execute_now=execute_now)
+                        token_symbol,
+                        short=False,
+                        slippage=slippage,
+                        size_delta=size_delta,
+                        execute_now=execute_now)
 
         # Case for Leverage Multiplier
         else:
-            if short == True:
+            if short:
                 if current_price['usd'] >= limit_price:
-                    return self.open_position(token_symbol, short=True, slippage=slippage,
-                                              leverage_multiplier=leverage_multiplier, execute_now=execute_now)
+                    return self.open_position(
+                        token_symbol,
+                        short=True,
+                        slippage=slippage,
+                        leverage_multiplier=leverage_multiplier,
+                        execute_now=execute_now)
             else:
                 if current_price['usd'] <= limit_price:
-                    return self.open_position(token_symbol, short=False, slippage=slippage,
-                                              leverage_multiplier=leverage_multiplier, execute_now=execute_now)
+                    return self.open_position(
+                        token_symbol,
+                        short=False,
+                        slippage=slippage,
+                        leverage_multiplier=leverage_multiplier,
+                        execute_now=execute_now)
         print(
             f"Limit not reached current : {current_price} | Entry: {current_position['last_price']/(10**18)} | Limit: {limit_price}")
         return None
 
-    def close_limit(self, token_symbol: str, limit_price: float,
-                    slippage: float = DEFAULT_SLIPPAGE, execute_now: bool = False):
+    def close_limit(
+            self,
+            token_symbol: str,
+            limit_price: float,
+            slippage: float = DEFAULT_SLIPPAGE,
+            execute_now: bool = False):
         """
         Close Limit position in a direction
         ...
@@ -627,7 +735,7 @@ class kwenta:
             return None
 
         short = True if current_position['size'] < 0 else False
-        if short == True:
+        if short:
             if current_price['usd'] <= limit_price:
                 return self.close_position(
                     token_symbol, slippage=slippage, execute_now=execute_now)
@@ -639,8 +747,12 @@ class kwenta:
             f"Limit not reached current : {current_price['usd']} | Entry: {current_position['last_price']/(10**18)} | Limit: {limit_price}")
         return None
 
-    def close_stop_limit(self, token_symbol: str, limit_price: float,
-                         stop_price: float, slippage: float = DEFAULT_SLIPPAGE) -> str:
+    def close_stop_limit(
+            self,
+            token_symbol: str,
+            limit_price: float,
+            stop_price: float,
+            slippage: float = DEFAULT_SLIPPAGE) -> str:
         """
         Close Limit position in a direction with Stop price
         ...
@@ -667,7 +779,7 @@ class kwenta:
             return None
 
         short = True if current_position['size'] < 0 else False
-        if short == True:
+        if short:
             if current_price['usd'] <= limit_price:
                 return self.close_position(token_symbol, slippage=slippage)
             elif current_price['usd'] >= stop_price:
@@ -714,3 +826,15 @@ class kwenta:
         except Exception as e:
             print(e)
             return None
+
+    def _get_tx_params(
+        self, value: 0
+    ) -> TxParams:
+        """Get generic transaction parameters."""
+        params: TxParams = {
+            "from": self.wallet_address,
+            "value": value,
+            "nonce": self.w3.eth.get_transaction_count(self.wallet_address)
+        }
+
+        return params
