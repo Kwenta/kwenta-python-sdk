@@ -325,20 +325,13 @@ class kwenta:
         if (token_amount < susd_balance['balance']):
             data_tx = market_contract.encodeABI(
                 fn_name='transferMargin', args=[token_amount])
-            transfer_tx = {
-                'value': 0,
-                'chainId': self.network_id,
-                'to': market_contract.address,
-                'from': self.wallet_address,
-                'gas': 1500000,
-                'gasPrice': self.web3.to_wei(
-                    '0.4',
-                    'gwei'),
-                'nonce': self.web3.eth.get_transaction_count(
-                    self.wallet_address),
-                'data': data_tx}
+
+            tx_params = self._get_tx_params(
+                to=market_contract.address, value=0)
+            tx_params['data'] = data_tx
+
             if execute_now:
-                tx_token = self.execute_transaction(transfer_tx)
+                tx_token = self.execute_transaction(tx_params)
                 print(f"Updating Position by {token_amount}")
                 print(f"TX: {tx_token}")
                 time.sleep(1)
@@ -347,7 +340,7 @@ class kwenta:
                 return {"token": token_symbol.upper(),
                         'token_amount': token_amount / (10**18),
                         "susd_balance": susd_balance,
-                        "tx_data": transfer_tx}
+                        "tx_data": tx_params}
 
     def get_leveraged_amount(self, token_symbol: str,
                              leverage_multiplier: float) -> dict:
@@ -426,22 +419,13 @@ class kwenta:
         data_tx = market_contract.encodeABI(
             fn_name='submitOffchainDelayedOrderWithTracking', args=[
                 int(size_delta), desired_fill_price, DEFAULT_TRACKING_CODE])
-        transfer_tx = {
-            'value': 0,
-            'chainId': self.network_id,
-            'to': market_contract.address,
-            'from': self.wallet_address,
-            'gas': 1500000,
-            'gasPrice': self.web3.to_wei(
-                '0.4',
-                'gwei'),
-            'nonce': self.web3.eth.get_transaction_count(
-                self.wallet_address),
-            'data': data_tx}
+
+        tx_params = self._get_tx_params(to=market_contract.address, value=0)
+        tx_params['data'] = data_tx
 
         print(f"Updating Position by {size_delta}")
         if execute_now:
-            tx_token = self.execute_transaction(transfer_tx)
+            tx_token = self.execute_transaction(tx_params)
             print(f"TX: {tx_token}")
             time.sleep(1)
             return tx_token
@@ -449,7 +433,7 @@ class kwenta:
             return {
                 "token": token_symbol.upper(),
                 'current_position': current_position['size'],
-                "tx_data": transfer_tx}
+                "tx_data": tx_params}
 
     def close_position(
             self,
@@ -487,20 +471,12 @@ class kwenta:
         data_tx = market_contract.encodeABI(
             fn_name='submitCloseOffchainDelayedOrderWithTracking', args=[
                 desired_fill_price, DEFAULT_TRACKING_CODE])
-        transfer_tx = {
-            'value': 0,
-            'chainId': self.network_id,
-            'to': market_contract.address,
-            'from': self.wallet_address,
-            'gas': 1500000,
-            'gasPrice': self.web3.to_wei(
-                '0.4',
-                'gwei'),
-            'nonce': self.web3.eth.get_transaction_count(
-                self.wallet_address),
-            'data': data_tx}
+
+        tx_params = self._get_tx_params(to=market_contract.address, value=0)
+        tx_params['data'] = data_tx
+
         if execute_now:
-            tx_token = self.execute_transaction(transfer_tx)
+            tx_token = self.execute_transaction(tx_params)
             print(f"Closing Position by {-current_position['size']}")
             print(f"TX: {tx_token}")
             time.sleep(1)
@@ -509,7 +485,7 @@ class kwenta:
             return {
                 "token": token_symbol.upper(),
                 'current_position': current_position['size'],
-                "tx_data": transfer_tx}
+                "tx_data": tx_params}
 
     def open_position(
             self,
@@ -586,20 +562,13 @@ class kwenta:
             data_tx = market_contract.encodeABI(
                 fn_name='submitOffchainDelayedOrderWithTracking', args=[
                     int(size_delta), desired_fill_price, DEFAULT_TRACKING_CODE])
-            transfer_tx = {
-                'value': 0,
-                'chainId': self.network_id,
-                'to': market_contract.address,
-                'from': self.wallet_address,
-                'gas': 1500000,
-                'gasPrice': self.web3.to_wei(
-                    '0.4',
-                    'gwei'),
-                'nonce': self.web3.eth.get_transaction_count(
-                    self.wallet_address),
-                'data': data_tx}
+
+            tx_params = self._get_tx_params(
+                to=market_contract.address, value=0)
+            tx_params['data'] = data_tx
+
             if execute_now:
-                tx_token = self.execute_transaction(transfer_tx)
+                tx_token = self.execute_transaction(tx_params)
                 print(f"Updating Position by {size_delta}")
                 print(f"TX: {tx_token}")
                 time.sleep(1)
@@ -610,7 +579,7 @@ class kwenta:
                         'current_position': current_position['size'],
                         "max_leverage": max_leverage / (10**18),
                         "leveraged_percent": (size_delta / max_leverage) * 100,
-                        "tx_data": transfer_tx}
+                        "tx_data": tx_params}
         return 'some'
 
     def open_limit(
@@ -828,13 +797,19 @@ class kwenta:
             return None
 
     def _get_tx_params(
-        self, value: 0
+        self, value=0, to=None
     ) -> TxParams:
         """Get generic transaction parameters."""
         params: TxParams = {
-            "from": self.wallet_address,
-            "value": value,
-            "nonce": self.w3.eth.get_transaction_count(self.wallet_address)
+            'from': self.wallet_address,
+            'to': to,
+            'chainId': self.network_id,
+            'value': value,
+            'gas': 1500000,
+            'gasPrice': self.web3.to_wei(
+                '0.4',
+                'gwei'),
+            'nonce': self.web3.eth.get_transaction_count(self.wallet_address)
         }
 
         return params
