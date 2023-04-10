@@ -2,11 +2,13 @@ import requests
 from kwenta_config import *
 
 # Send Message to Telegram Channel
-def sendMessage(text:str)->None:
+
+
+def sendMessage(text: str) -> None:
     """
     Send Message to Telegram Channel
     ...
-    
+
     Attributes
     ----------
     text : str

@@ -23,7 +23,7 @@ setup(
         'Programming Language :: Python :: 3.10',
     ],
     python_requires=">=3.8",
-    package_data={"kwenta":["json/*"]},
+    package_data={"kwenta": ["json/*"]},
     include_package_data=True,
 )
 # Local Install

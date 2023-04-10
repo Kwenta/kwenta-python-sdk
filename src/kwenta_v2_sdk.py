@@ -9,9 +9,10 @@ pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 warnings.filterwarnings('ignore')
 
+
 class kwenta:
-    def __init__(self, provider_rpc:str, wallet_address:str, private_key:str=None):
-        #init account variables + contracts
+    def __init__(self, provider_rpc: str, wallet_address: str, private_key: str = None):
+        # init account variables + contracts
         self.web3 = Web3(Web3.HTTPProvider(provider_rpc))
         self.private_key = private_key
         self.wallet_address = wallet_address
@@ -56,8 +57,9 @@ class kwenta:
                 'utf-8').strip("\x00").strip("PERP")[1:]] = normalized_market
 
         # load SUSD Contract
-        susd_token = self.web3.eth.contract(self.web3.to_checksum_address(addresses['sUSD'][10]), abi=abis['sUSD'])
-        
+        susd_token = self.web3.eth.contract(
+            self.web3.to_checksum_address(addresses['sUSD'][10]), abi=abis['sUSD'])
+
         return allmarket_listings, susd_token
 
     def load_contracts(self, token_symbol: str):
@@ -79,7 +81,7 @@ class kwenta:
 
     def execute_transaction(self, tx_data: dict):
         """
-        Execute a transaction given the TX data 
+        Execute a transaction given the TX data
         ...
 
         Attributes
@@ -93,7 +95,8 @@ class kwenta:
             raise Exception("No private key specified.")
         signed_txn = self.web3.eth.account.sign_transaction(
             tx_data, private_key=self.private_key)
-        tx_token = self.web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+        tx_token = self.web3.eth.send_raw_transaction(
+            signed_txn.rawTransaction)
         return self.web3.to_hex(tx_token)
 
     # Returns bool of if delayed order is in queue
@@ -155,11 +158,13 @@ class kwenta:
             self.wallet_address).call()
         current_asset_price = self.get_current_asset_price(token_symbol)
         if current_positions[4] < 0:
-            pnl = abs(current_asset_price['usd']* (current_positions[3]/(10**18))) - abs((current_positions[2]/(10**18))*(current_positions[3]/(10**18)))
+            pnl = abs(current_asset_price['usd'] * (current_positions[3]/(10**18))) - abs(
+                (current_positions[2]/(10**18))*(current_positions[3]/(10**18)))
         else:
-            pnl = abs((current_positions[2]/(10**18))*(current_positions[3]/(10**18))) - abs(current_asset_price['usd']* (current_positions[3]/(10**18)))
+            pnl = abs((current_positions[2]/(10**18))*(current_positions[3]/(10**18))) - abs(
+                current_asset_price['usd'] * (current_positions[3]/(10**18)))
         positions_data = {"id": current_positions[0], "lastFundingIndex": current_positions[1],
-                          "margin": current_positions[2], "lastPrice": current_positions[3], "size": current_positions[4],"pnl_usd": pnl}
+                          "margin": current_positions[2], "lastPrice": current_positions[3], "size": current_positions[4], "pnl_usd": pnl}
         return positions_data
 
     # Get margin available for position
@@ -245,13 +250,14 @@ class kwenta:
         ----------
         Dict: wei and usd SUSD balance
         """
-        wei_balance = self.susd_token.functions.balanceOf(self.wallet_address).call()
+        wei_balance = self.susd_token.functions.balanceOf(
+            self.wallet_address).call()
         usd_balance = wei_balance/(10**18)
         return {"wei_balance": wei_balance, "usd_balance": usd_balance}
 
     # Transfers SUSD from wallet to Margin account
 
-    def transfer_margin(self, token_symbol: str, token_amount: int,execute_now:bool=False) -> str:
+    def transfer_margin(self, token_symbol: str, token_amount: int, execute_now: bool = False) -> str:
         """
         Transfers SUSD from wallet to Margin account
         ...
@@ -266,7 +272,7 @@ class kwenta:
             token symbol from list of supported asset
         Returns
         ----------
-        str: token transfer Tx id 
+        str: token transfer Tx id
         """
         token_amount = (token_amount)*(10**18)
         susd_balance = self.get_susd_balance()
@@ -284,7 +290,7 @@ class kwenta:
                 time.sleep(1)
                 return tx_token
             else:
-                return {"token":token_symbol.upper(),'token_amount':token_amount/(10**18),"susd_balance":susd_balance,"tx_data":transfer_tx}
+                return {"token": token_symbol.upper(), 'token_amount': token_amount/(10**18), "susd_balance": susd_balance, "tx_data": transfer_tx}
 
     # Get out amount of leverage available for account
 
@@ -324,7 +330,7 @@ class kwenta:
 
     # Update current position with new amounts, i.e. increase/decrease position
 
-    def update_position(self, token_symbol: str, position_amount: float,execute_now:bool=False) -> str:
+    def update_position(self, token_symbol: str, position_amount: float, execute_now: bool = False) -> str:
         """
         Transfers SUSD from wallet to Margin account
         ...
@@ -340,7 +346,7 @@ class kwenta:
 
         Returns
         ----------
-        str: token transfer Tx id 
+        str: token transfer Tx id
         """
         contracts = self.load_contracts(token_symbol.upper())
         position_amount = position_amount*(10**18)
@@ -362,11 +368,12 @@ class kwenta:
                 time.sleep(1)
                 return tx_token
             else:
-                return {"token":token_symbol.upper(),'current_position':current_position['size'],"tx_data":transfer_tx}
+                return {"token": token_symbol.upper(), 'current_position': current_position['size'], "tx_data": transfer_tx}
     # Close full position
-    def close_position(self, token_symbol: str,execute_now:bool=False) -> str:
+
+    def close_position(self, token_symbol: str, execute_now: bool = False) -> str:
         """
-        Fully closes account position 
+        Fully closes account position
         ...
 
         Attributes
@@ -378,7 +385,7 @@ class kwenta:
 
         Returns
         ----------
-        str: token transfer Tx id 
+        str: token transfer Tx id
         """
         contracts = self.load_contracts(token_symbol.upper())
         current_position = self.get_current_positions(token_symbol)
@@ -403,10 +410,10 @@ class kwenta:
             time.sleep(1)
             return tx_token
         else:
-            return {"token":token_symbol.upper(),'current_position':current_position['size'],"tx_data":transfer_tx}
+            return {"token": token_symbol.upper(), 'current_position': current_position['size'], "tx_data": transfer_tx}
 
     # Open new Position
-    def open_position(self, token_symbol: str, short: bool = False, position_amount: float = None, leverage_multiplier: float = None,execute_now:bool=False) -> str:
+    def open_position(self, token_symbol: str, short: bool = False, position_amount: float = None, leverage_multiplier: float = None, execute_now: bool = False) -> str:
         """
         Open account position in a direction
         ...
@@ -417,18 +424,18 @@ class kwenta:
             wallet_address of wallet to check
         token_symbol : str
             token symbol from list of supported asset
-        short : bool, optional 
+        short : bool, optional
             set to True when creating a short. (Implemented to double check side)
-        position_amount : int, optional 
+        position_amount : int, optional
             position amount in human readable format as trade asset i.e. 12 SOL. Exact position in a direction (Sign this It WILL MATTER).
-        leverage_multiplier : 
+        leverage_multiplier :
             Multiplier of Leverage to use when creating order. Based on available margin in account.
 
         *Use either position_amount or leverage_multiplier.
 
         Returns
         ----------
-        str: token transfer Tx id 
+        str: token transfer Tx id
         """
         if (position_amount == None) and (leverage_multiplier == None):
             print("Enter EITHER a position amount or a leverage multiplier!")
@@ -445,11 +452,13 @@ class kwenta:
                 f"Current Position Size: {(current_position['size'])/(10**18)}")
             return None
         if leverage_multiplier:
-            max_leverage = self.get_leveraged_amount(token_symbol,leverage_multiplier)['max_asset_leverage']
+            max_leverage = self.get_leveraged_amount(token_symbol, leverage_multiplier)[
+                'max_asset_leverage']
             position_amount = self.get_leveraged_amount(
                 token_symbol, leverage_multiplier=leverage_multiplier)['leveraged_amount']
         elif position_amount:
-            max_leverage = self.get_leveraged_amount(token_symbol,1)['max_asset_leverage']
+            max_leverage = self.get_leveraged_amount(
+                token_symbol, 1)['max_asset_leverage']
             position_amount = position_amount*(10**18)
         # check side
         if short == True:
@@ -475,7 +484,7 @@ class kwenta:
                 time.sleep(1)
                 return tx_token
             else:
-                return {"token":token_symbol.upper(),'position_size':position_amount/(10**18),'current_position':current_position['size'],"max_leverage":max_leverage/(10**18),"leveraged_percent":(position_amount/max_leverage)*100,"tx_data":transfer_tx}
+                return {"token": token_symbol.upper(), 'position_size': position_amount/(10**18), 'current_position': current_position['size'], "max_leverage": max_leverage/(10**18), "leveraged_percent": (position_amount/max_leverage)*100, "tx_data": transfer_tx}
 
     # open an order with a specific limit amount
     def open_limit(self, token_symbol: str, limit_price: float, position_amount: float = None, leverage_multiplier: float = None, short: bool = False) -> str:
@@ -489,20 +498,20 @@ class kwenta:
             wallet_address of wallet to check
         token_symbol : str
             token symbol from list of supported asset
-        short : bool, optional 
+        short : bool, optional
             set to True when creating a short. (Implemented to double check side)
         limit_price : float
-            limit price in dollars to open position. 
-        position_amount : int, optional 
+            limit price in dollars to open position.
+        position_amount : int, optional
             position amount in human readable format as trade asset i.e. 12 SOL . Exact position in a direction (Sign this It WILL MATTER).
-        leverage_multiplier : 
+        leverage_multiplier :
             Multiplier of Leverage to use when creating order. Based on available margin in account.
 
         *Use either position_amount or leverage_multiplier.
 
         Returns
         ----------
-        str: token transfer Tx id 
+        str: token transfer Tx id
         """
         if (position_amount == None) and (leverage_multiplier == None):
             print("Enter EITHER a position amount or a leverage multiplier!")
@@ -549,14 +558,14 @@ class kwenta:
             wallet_address of wallet to check
         token_symbol : str
             token symbol from list of supported asset
-        short : bool, optional 
+        short : bool, optional
             set to True when creating a short. (Implemented to double check side)
         limit_price : float
-            limit price in *dollars* to open position. 
+            limit price in *dollars* to open position.
 
         Returns
         ----------
-        str: token transfer Tx id 
+        str: token transfer Tx id
         """
         current_pos = self.get_current_positions(token_symbol)
         current_price = self.get_current_asset_price(token_symbol)['usd']
@@ -588,16 +597,16 @@ class kwenta:
             wallet_address of wallet to check
         token_symbol : str
             token symbol from list of supported asset
-        short : bool, optional 
+        short : bool, optional
             set to True when creating a short. (Implemented to double check side)
         limit_price : float
-            limit price in dollars to open position. 
-        stop_price : float 
-            Set to stop price incase of bad position, will exit position if triggered 
+            limit price in dollars to open position.
+        stop_price : float
+            Set to stop price incase of bad position, will exit position if triggered
 
         Returns
         ----------
-        str: token transfer Tx id 
+        str: token transfer Tx id
         """
         current_pos = self.get_current_positions(token_symbol)
         current_price = self.get_current_asset_price(token_symbol)['usd']
@@ -632,18 +641,18 @@ class kwenta:
         time_back : int
             How many hours back to get historical data from
         period : int
-            Timescale of candles in seconds 
+            Timescale of candles in seconds
 
         Returns
         ----------
-        str: token transfer Tx id 
+        str: token transfer Tx id
         """
         current_timestamp = int(time.time())
         # Subtract 4 hours from current timestamp
         day_ago = current_timestamp - (time_back * 60 * 60)
         url = f'https://api.thegraph.com/subgraphs/name/kwenta/optimism-latest-rates'
         headers = {'accept': 'application/json, text/plain, */*',
-            'content-type': 'application/json'}
+                   'content-type': 'application/json'}
         payload = {
             "query": f"{{candles(first:1000,where:{{synth:\"{token_symbol.upper()}\",timestamp_gt:{day_ago},timestamp_lt:{current_timestamp},period:{period}}},orderBy:\"timestamp\",orderDirection:\"asc\"){{id synth open high low close timestamp average period aggregatedPrices}}}}"
         }

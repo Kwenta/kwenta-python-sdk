@@ -2,13 +2,13 @@
 
 Python SDK to interact with Kwenta's Smart Contract Systems.
 
-## CAUTION: TRADING WITH MARGIN CAN RESULT IN LOSS. PLEASE TRADE RESPONSIBLY!    
+## CAUTION: TRADING WITH MARGIN CAN RESULT IN LOSS. PLEASE TRADE RESPONSIBLY!
 
-## Installation 
+## Installation
 
 The SDK requires the following packages to be installed.
 
-numpy, pandas, plotly, requests, streamlit, web3 
+numpy, pandas, plotly, requests, streamlit, web3
 
 ```bash
 pip install -r requirements.txt
@@ -51,4 +51,3 @@ To run the streamlit dashboard run the following. This is still being built. The
 - Account Safety Checks in-place for positioning
 - Move Margin to and from wallet
 - Local Dashboard WIP
-
