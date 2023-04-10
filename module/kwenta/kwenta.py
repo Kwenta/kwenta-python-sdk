@@ -30,10 +30,10 @@ class kwenta:
             self.web3 = w3
 
         # init contracts
-        self.markets, self.market_contracts, self.susd_token = self.init_markets()
+        self.markets, self.market_contracts, self.susd_token = self._load_markets()
         self.token_list = list(self.markets.keys())
 
-    def init_markets(self):
+    def _load_markets(self):
         """
         Initializes all market contracts
         ...
@@ -81,23 +81,6 @@ class kwenta:
             addresses['sUSD'][self.network_id]), abi=abis['sUSD'])
 
         return markets, market_contracts, susd_token
-
-    def load_market_contract(self, token_symbol: str):
-        """
-        Loads market contract for specific token symbol
-        ...
-
-        Attributes
-        ----------
-        token_symbol : str
-            token symbol from list of supported asset
-        """
-        # load market contracts
-        proxy_contract = self.web3.eth.contract(
-            self.web3.to_checksum_address(
-                self.markets[token_symbol]['market_address']),
-            abi=abis['PerpsV2Market'])
-        return proxy_contract
 
     def get_market_contract(self, token_symbol: str):
         """
@@ -795,21 +778,3 @@ class kwenta:
         except Exception as e:
             print(e)
             return None
-
-    def _get_tx_params(
-        self, value=0, to=None
-    ) -> TxParams:
-        """Get generic transaction parameters."""
-        params: TxParams = {
-            'from': self.wallet_address,
-            'to': to,
-            'chainId': self.network_id,
-            'value': value,
-            'gas': 1500000,
-            'gasPrice': self.web3.to_wei(
-                '0.4',
-                'gwei'),
-            'nonce': self.web3.eth.get_transaction_count(self.wallet_address)
-        }
-
-        return params
