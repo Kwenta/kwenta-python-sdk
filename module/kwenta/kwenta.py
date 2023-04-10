@@ -124,8 +124,6 @@ class kwenta:
 
         Attributes
         ----------
-        wallet_address : str
-            wallet_address of wallet to check
         token_symbol : str
             token symbol from list of supported asset
         """
@@ -152,15 +150,13 @@ class kwenta:
         usd_price = self.web3.from_wei(wei_price, 'ether')
         return {"usd": usd_price, "wei": wei_price}
 
-    def get_current_positions(self, token_symbol: str) -> dict:
+    def get_current_position(self, token_symbol: str) -> dict:
         """
         Gets Current Position Data
         ...
 
         Attributes
         ----------
-        wallet_address : str
-            wallet_address of wallet to check
         token_symbol : str
             token symbol from list of supported asset
         Returns
@@ -392,7 +388,7 @@ class kwenta:
         market_contract = self.get_market_contract(token_symbol)
         size_delta = self.web3.to_wei(abs(size_delta), 'ether') * is_short
 
-        current_position = self.get_current_positions(token_symbol)
+        current_position = self.get_current_position(token_symbol)
         current_price = self.get_current_asset_price(token_symbol)
 
         desired_fill_price = int(
@@ -439,7 +435,7 @@ class kwenta:
         str: token transfer Tx id
         """
         market_contract = self.get_market_contract(token_symbol)
-        current_position = self.get_current_positions(token_symbol)
+        current_position = self.get_current_position(token_symbol)
         current_price = self.get_current_asset_price(token_symbol)
 
         is_short = -1 if -current_position['size'] < 0 else 1
@@ -509,7 +505,7 @@ class kwenta:
             return None
 
         market_contract = self.get_market_contract(token_symbol)
-        current_position = self.get_current_positions(token_symbol)
+        current_position = self.get_current_position(token_symbol)
         current_price = self.get_current_asset_price(token_symbol)
 
         # starting at zero otherwise use Update position
@@ -605,7 +601,7 @@ class kwenta:
             print("Enter EITHER a position amount or a leverage multiplier!")
             return None
 
-        current_position = self.get_current_positions(token_symbol)
+        current_position = self.get_current_position(token_symbol)
         current_price = self.get_current_asset_price(token_symbol)
 
         if current_position['size'] != 0:
@@ -678,7 +674,7 @@ class kwenta:
         ----------
         str: token transfer Tx id
         """
-        current_position = self.get_current_positions(token_symbol)
+        current_position = self.get_current_position(token_symbol)
         current_price = self.get_current_asset_price(token_symbol)
 
         # Check if you are in Position
@@ -723,7 +719,7 @@ class kwenta:
         ----------
         str: token transfer Tx id
         """
-        current_position = self.get_current_positions(token_symbol)
+        current_position = self.get_current_position(token_symbol)
         current_price = self.get_current_asset_price(token_symbol)
         # Check if you are in Position
         if current_position['size'] == 0:
