@@ -377,21 +377,19 @@ class kwenta:
         desired_fill_price = int(current_price['wei'] + current_price['wei'] * (slippage/100) * is_short)
 
         print(f"Current Position Size: {current_position['size']}")
-        # check that position size is less than margin limit
-        if (size_delta < current_position['margin']):
-            data_tx = market_contract.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
-                int(size_delta), desired_fill_price, DEFAULT_TRACKING_CODE])
-            transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': market_contract.address, 'from': self.wallet_address, 'gas': 1500000,
-                           'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
+        data_tx = market_contract.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
+            int(size_delta), desired_fill_price, DEFAULT_TRACKING_CODE])
+        transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': market_contract.address, 'from': self.wallet_address, 'gas': 1500000,
+                        'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
 
-            print(f"Updating Position by {size_delta}")
-            if execute_now:
-                tx_token = self.execute_transaction(transfer_tx)
-                print(f"TX: {tx_token}")
-                time.sleep(1)
-                return tx_token
-            else:
-                return {"token":token_symbol.upper(),'current_position':current_position['size'],"tx_data":transfer_tx}
+        print(f"Updating Position by {size_delta}")
+        if execute_now:
+            tx_token = self.execute_transaction(transfer_tx)
+            print(f"TX: {tx_token}")
+            time.sleep(1)
+            return tx_token
+        else:
+            return {"token":token_symbol.upper(),'current_position':current_position['size'],"tx_data":transfer_tx}
 
     def close_position(self, token_symbol: str,slippage:float=DEFAULT_SLIPPAGE,execute_now:bool=False) -> str:
         """
@@ -435,7 +433,7 @@ class kwenta:
         else:
             return {"token":token_symbol.upper(),'current_position':current_position['size'],"tx_data":transfer_tx}
 
-    def open_position(self, token_symbol: str, short: bool = False, position_amount: float = None,slippage:float=DEFAULT_SLIPPAGE,leverage_multiplier: float = None,execute_now:bool=False) -> str:
+    def open_position(self, token_symbol: str, short: bool = False, size_delta: float = None, slippage: float = DEFAULT_SLIPPAGE, leverage_multiplier: float = None, execute_now: bool = False) -> str:
         """
         Open account position in a direction
         ...
@@ -446,23 +444,23 @@ class kwenta:
             token symbol from list of supported asset
         short : bool, optional 
             set to True when creating a short. (Implemented to double check side)
-        position_amount : int, optional 
+        size_delta : int, optional 
             position amount in human readable format as trade asset i.e. 12 SOL. Exact position in a direction (Sign this It WILL MATTER).
         leverage_multiplier : 
             Multiplier of Leverage to use when creating order. Based on available margin in account.
         slippage : float
             slippage percentage
             
-        *Use either position_amount or leverage_multiplier.
+        *Use either size_delta or leverage_multiplier.
 
         Returns
         ----------
         str: token transfer Tx id 
         """
-        if (position_amount == None) and (leverage_multiplier == None):
+        if (size_delta == None) and (leverage_multiplier == None):
             print("Enter EITHER a position amount or a leverage multiplier!")
             return None
-        elif (position_amount != None) and (leverage_multiplier != None):
+        elif (size_delta != None) and (leverage_multiplier != None):
             print("Enter EITHER a position amount or a leverage multiplier!")
             return None
 
@@ -477,36 +475,39 @@ class kwenta:
                 f"Current Position Size: {self.web3.from_wei(current_position['size'], 'ether')}")
             return None
         if leverage_multiplier:
-            max_leverage = self.get_leveraged_amount(token_symbol,leverage_multiplier)['max_asset_leverage']
-            position_amount = self.get_leveraged_amount(
-                token_symbol, leverage_multiplier=leverage_multiplier)['leveraged_amount']
-        elif position_amount:
+            leveraged_amount = self.get_leveraged_amount(token_symbol, leverage_multiplier)
+            max_leverage = leveraged_amount['max_asset_leverage']
+
+            size_delta = leveraged_amount['leveraged_amount']
+            is_short = short
+            size_delta = self.web3.to_wei(abs(size_delta), 'ether') * is_short
+        elif size_delta:
             max_leverage = self.get_leveraged_amount(token_symbol,1)['max_asset_leverage']
-            position_amount = position_amount*(10**18)
+
+            is_short = -1 if size_delta < 0 else 1
+            size_delta = self.web3.to_wei(abs(size_delta), 'ether') * is_short
         # check side
-        if short == True:
-            position_amount = position_amount * -1
-        if (position_amount < 0) and short == False:
+        if short == True & is_short != True:
             print(
                 "Position size is Negative & Short set to False! Double Check intention.")
             return None
         # checking available margin to make sure this is possible
-        if (abs(position_amount) < max_leverage):
+        if (abs(size_delta) < max_leverage):
             desired_fill_price = int(
-                current_price['wei'] + current_price['wei'] * (slippage/100) * short)
+                current_price['wei'] + current_price['wei'] * (slippage/100) * is_short)
 
             data_tx = market_contract.encodeABI(fn_name='submitOffchainDelayedOrderWithTracking', args=[
-                int(position_amount), desired_fill_price, DEFAULT_TRACKING_CODE])
+                int(size_delta), desired_fill_price, DEFAULT_TRACKING_CODE])
             transfer_tx = {'value': 0, 'chainId': self.network_id, 'to': market_contract.address, 'from': self.wallet_address, 'gas': 1500000,
                            'gasPrice': self.web3.to_wei('0.4', 'gwei'), 'nonce': self.web3.eth.get_transaction_count(self.wallet_address), 'data': data_tx}
             if execute_now:
                 tx_token = self.execute_transaction(transfer_tx)
-                print(f"Updating Position by {position_amount}")
+                print(f"Updating Position by {size_delta}")
                 print(f"TX: {tx_token}")
                 time.sleep(1)
                 return tx_token
             else:
-                return {"token":token_symbol.upper(),'position_size':position_amount/(10**18),'current_position':current_position['size'],"max_leverage":max_leverage/(10**18),"leveraged_percent":(position_amount/max_leverage)*100,"tx_data":transfer_tx}
+                return {"token":token_symbol.upper(),'position_size':size_delta/(10**18),'current_position':current_position['size'],"max_leverage":max_leverage/(10**18),"leveraged_percent":(size_delta/max_leverage)*100,"tx_data":transfer_tx}
         return 'some'
 
     def open_limit(self, token_symbol: str, limit_price: float, position_amount: float = None, leverage_multiplier: float = None, slippage: float = DEFAULT_SLIPPAGE, short: bool = False, execute_now: bool = False) -> str:
