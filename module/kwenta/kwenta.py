@@ -10,7 +10,7 @@ from .constants import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_SLIPPA
 warnings.filterwarnings('ignore')
 
 
-class kwenta:
+class Kwenta:
     def __init__(self, provider_rpc: str, wallet_address: str,
                  private_key: str = None, network_id: int = None):
         # set default values
@@ -81,6 +81,24 @@ class kwenta:
             addresses['sUSD'][self.network_id]), abi=abis['sUSD'])
 
         return markets, market_contracts, susd_token
+
+    def _get_tx_params(
+        self, value=0, to=None
+    ) -> TxParams:
+        """Get generic transaction parameters."""
+        params: TxParams = {
+            'from': self.wallet_address,
+            'to': to,
+            'chainId': self.network_id,
+            'value': value,
+            'gas': 1500000,
+            'gasPrice': self.web3.to_wei(
+                '0.4',
+                'gwei'),
+            'nonce': self.web3.eth.get_transaction_count(self.wallet_address)
+        }
+
+        return params
 
     def get_market_contract(self, token_symbol: str):
         """
