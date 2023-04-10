@@ -1,0 +1,10 @@
+repos:
+- repo: https://github.com/pycqa/pylint
+  rev: v2.11.1
+  hooks:
+  - id: pylint
+
+- repo: https://github.com/pycqa/flake8
+  rev: 4.0.1
+  hooks:
+  - id: flake8
