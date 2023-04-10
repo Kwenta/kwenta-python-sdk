@@ -510,7 +510,7 @@ class kwenta:
                 return {"token":token_symbol.upper(),'position_size':size_delta/(10**18),'current_position':current_position['size'],"max_leverage":max_leverage/(10**18),"leveraged_percent":(size_delta/max_leverage)*100,"tx_data":transfer_tx}
         return 'some'
 
-    def open_limit(self, token_symbol: str, limit_price: float, position_amount: float = None, leverage_multiplier: float = None, slippage: float = DEFAULT_SLIPPAGE, short: bool = False, execute_now: bool = False) -> str:
+    def open_limit(self, token_symbol: str, limit_price: float, size_delta: float = None, leverage_multiplier: float = None, slippage: float = DEFAULT_SLIPPAGE, short: bool = False, execute_now: bool = False) -> str:
         """
         Open Limit position in a direction
         ...
@@ -523,22 +523,22 @@ class kwenta:
             set to True when creating a short. (Implemented to double check side)
         limit_price : float
             limit price in dollars to open position. 
-        position_amount : int, optional 
+        size_delta : int, optional 
             position amount in human readable format as trade asset i.e. 12 SOL . Exact position in a direction (Sign this It WILL MATTER).
         leverage_multiplier : 
             Multiplier of Leverage to use when creating order. Based on available margin in account.
         slippage : float
             slippage percentage
-        *Use either position_amount or leverage_multiplier.
+        *Use either size_delta or leverage_multiplier.
 
         Returns
         ----------
         str: token transfer Tx id 
         """
-        if (position_amount == None) and (leverage_multiplier == None):
+        if (size_delta == None) and (leverage_multiplier == None):
             print("Enter EITHER a position amount or a leverage multiplier!")
             return None
-        elif (position_amount != None) and (leverage_multiplier != None):
+        elif (size_delta != None) and (leverage_multiplier != None):
             print("Enter EITHER a position amount or a leverage multiplier!")
             return None
 
@@ -552,14 +552,14 @@ class kwenta:
             return None
 
         # Case for position_amount manually set
-        if position_amount != None:
+        if size_delta != None:
             #check Short Position
             if short == True:
                 if current_price['usd'] >= limit_price:
-                    return self.open_position(token_symbol,short=True, slippage=slippage, position_amount=position_amount, execute_now=execute_now)
+                    return self.open_position(token_symbol,short=True, slippage=slippage, size_delta=size_delta, execute_now=execute_now)
             else:
                 if current_price['usd'] <= limit_price:
-                    return self.open_position(token_symbol, short=False, slippage=slippage, position_amount=position_amount, execute_now=execute_now)
+                    return self.open_position(token_symbol, short=False, slippage=slippage, size_delta=size_delta, execute_now=execute_now)
         
         # Case for Leverage Multiplier
         else:
