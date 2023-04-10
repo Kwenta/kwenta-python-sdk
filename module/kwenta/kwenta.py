@@ -1,6 +1,5 @@
 import time
 import warnings
-import requests
 from web3 import Web3
 from web3.types import TxParams
 from decimal import Decimal
