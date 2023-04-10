@@ -4,15 +4,22 @@ import requests
 from web3 import Web3
 from web3.types import TxParams
 from decimal import Decimal
-from .contracts import abis, addresses
 from .constants import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_SLIPPAGE
+from .contracts import abis, addresses
+from .alerts import Alerts
 
 warnings.filterwarnings('ignore')
 
 
 class Kwenta:
-    def __init__(self, provider_rpc: str, wallet_address: str,
-                 private_key: str = None, network_id: int = None):
+    def __init__(
+            self,
+            provider_rpc: str,
+            wallet_address: str,
+            private_key: str = None,
+            network_id: int = None,
+            telegram_token: str = None,
+            telegram_channel_name: str = None):
         # set default values
         if network_id is None:
             network_id = DEFAULT_NETWORK_ID
@@ -32,6 +39,10 @@ class Kwenta:
         # init contracts
         self.markets, self.market_contracts, self.susd_token = self._load_markets()
         self.token_list = list(self.markets.keys())
+
+        # init alerts
+        if telegram_token and telegram_channel_name:
+            self.alerts = Alerts(telegram_token, telegram_channel_name)
 
     def _load_markets(self):
         """
