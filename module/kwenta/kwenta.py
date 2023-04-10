@@ -571,7 +571,7 @@ class Kwenta:
             is_short = -1 if size_delta < 0 else 1
             size_delta = self.web3.to_wei(abs(size_delta), 'ether') * is_short
         # check side
-        if short & is_short != True:
+        if short == True & is_short != True:
             print(
                 "Position size is Negative & Short set to False! Double Check intention.")
             return None
