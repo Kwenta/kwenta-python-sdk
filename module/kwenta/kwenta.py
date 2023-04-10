@@ -277,6 +277,45 @@ class kwenta:
         balance_usd = self.web3.from_wei(balance, 'ether')
         return {"balance": balance, "balance_usd": balance_usd}
 
+    def get_leveraged_amount(self, token_symbol: str,
+                             leverage_multiplier: float) -> dict:
+        """
+        Get out amount of leverage available for account
+        ...
+
+        Attributes
+        ----------
+        token_symbol : str
+            token symbol from list of supported asset
+        leverage_multiplier : int
+            leverage multiplier amount. Must be within the range 0.1 - 24.7.
+
+        Returns
+        ----------
+        Dict: amount of leverage available and max amount of leverage available
+        """
+        if leverage_multiplier is not None:
+            if leverage_multiplier > 24.7 or leverage_multiplier < 0.1:
+                print("Leveraged_multiplier must be within the range 0.1 - 24.7!")
+                return None
+        margin = self.get_accessible_margin(token_symbol)
+        asset_price = self.get_current_asset_price(token_symbol)
+        print(f"SUSD Available: {margin['margin_remaining_usd']}")
+        print(f"Current Asset Price: {asset_price['usd']}")
+        # Using 24.7 to cover edge cases
+        max_leverage = self.web3.to_wei(
+            (margin['margin_remaining_usd'] /
+             asset_price['usd']) *
+            Decimal(24.7),
+            'ether')
+        print(f"Max Leveraged Asset Amount: {max_leverage}")
+        leveraged_amount = (
+            (margin['margin_remaining'] /
+             asset_price['wei']) *
+            leverage_multiplier)
+        return {"leveraged_amount": leveraged_amount,
+                "max_asset_leverage": max_leverage}
+
     def transfer_margin(self, token_symbol: str,
                         token_amount: int, execute_now: bool = False) -> str:
         """
@@ -324,45 +363,6 @@ class kwenta:
                         'token_amount': token_amount / (10**18),
                         "susd_balance": susd_balance,
                         "tx_data": tx_params}
-
-    def get_leveraged_amount(self, token_symbol: str,
-                             leverage_multiplier: float) -> dict:
-        """
-        Get out amount of leverage available for account
-        ...
-
-        Attributes
-        ----------
-        token_symbol : str
-            token symbol from list of supported asset
-        leverage_multiplier : int
-            leverage multiplier amount. Must be within the range 0.1 - 24.7.
-
-        Returns
-        ----------
-        Dict: amount of leverage available and max amount of leverage available
-        """
-        if leverage_multiplier is not None:
-            if leverage_multiplier > 24.7 or leverage_multiplier < 0.1:
-                print("Leveraged_multiplier must be within the range 0.1 - 24.7!")
-                return None
-        margin = self.get_accessible_margin(token_symbol)
-        asset_price = self.get_current_asset_price(token_symbol)
-        print(f"SUSD Available: {margin['margin_remaining_usd']}")
-        print(f"Current Asset Price: {asset_price['usd']}")
-        # Using 24.7 to cover edge cases
-        max_leverage = self.web3.to_wei(
-            (margin['margin_remaining_usd'] /
-             asset_price['usd']) *
-            Decimal(24.7),
-            'ether')
-        print(f"Max Leveraged Asset Amount: {max_leverage}")
-        leveraged_amount = (
-            (margin['margin_remaining'] /
-             asset_price['wei']) *
-            leverage_multiplier)
-        return {"leveraged_amount": leveraged_amount,
-                "max_asset_leverage": max_leverage}
 
     def modify_position(
             self,
