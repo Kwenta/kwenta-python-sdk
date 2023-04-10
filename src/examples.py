@@ -17,7 +17,7 @@ while current_price['usd'] >= limit_price:
         print(e)
         print("RPC Limited: Waiting 5 Seconds...")
         time.sleep(5)
-        
+
 ###################################################################
 # Long limit Example
 account = kwenta(provider_rpc, wallet_address, private_key)
@@ -54,7 +54,7 @@ while current_price['usd'] >= limit_price:
         time.sleep(5)
 sendMessage(f"Limit Price Hit : {limit_price} | Position Closed")
 
-         
-###################################################################       
+
+###################################################################
 
 '''
