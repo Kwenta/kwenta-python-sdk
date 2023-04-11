@@ -3,10 +3,11 @@ import warnings
 from web3 import Web3
 from web3.types import TxParams
 from decimal import Decimal
-from .constants import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_SLIPPAGE, DEFAULT_GQL_ENDPOINT_PERPS, DEFAULT_GQL_ENDPOINT_RATES
+from .constants import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_SLIPPAGE, DEFAULT_GQL_ENDPOINT_PERPS, DEFAULT_GQL_ENDPOINT_RATES, DEFAULT_PRICE_SERVICE_ENDPOINTS
 from .contracts import abis, addresses
 from .alerts import Alerts
 from .queries import Queries
+from .pyth import Pyth
 
 warnings.filterwarnings('ignore')
 
@@ -20,6 +21,7 @@ class Kwenta:
             network_id: int = None,
             gql_endpoint_perps: str = None,
             gql_endpoint_rates: str = None,
+            price_service_endpoint: str = None,
             telegram_token: str = None,
             telegram_channel_name: str = None):
         # set default values
@@ -56,6 +58,13 @@ class Kwenta:
         self.queries = Queries(
             gql_endpoint_perps=gql_endpoint_perps,
             gql_endpoint_rates=gql_endpoint_rates)
+
+        # init pyth
+        if not price_service_endpoint:
+            price_service_endpoint = DEFAULT_PRICE_SERVICE_ENDPOINTS[self.network_id]
+
+        self.pyth = Pyth(
+            self.network_id, price_service_endpoint=price_service_endpoint)
 
     def _load_markets(self):
         """
