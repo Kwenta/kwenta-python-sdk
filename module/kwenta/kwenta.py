@@ -601,7 +601,53 @@ class Kwenta:
                         "max_leverage": max_leverage / (10**18),
                         "leveraged_percent": (size_delta / max_leverage) * 100,
                         "tx_data": tx_params}
-        return 'some'
+
+    def cancel_order(
+            self,
+            token_symbol: str,
+            account: str = None,
+            execute_now: bool = False) -> str:
+        """
+        Cancels an open order
+        ...
+
+        Attributes
+        ----------
+        account : str
+            address of the account to cancel or defaults to connected wallet
+        token_symbol : str
+            token symbol from list of supported asset
+
+        Returns
+        ----------
+        str: transaction hash for closing the order
+        """
+        market_contract = self.get_market_contract(token_symbol)
+        delayed_order = self.check_delayed_orders(token_symbol)
+
+        if account is None:
+            account = self.wallet_address
+
+        if not delayed_order:
+            print("No open order")
+            return None
+        # Flip position size to the opposite direction
+        data_tx = market_contract.encodeABI(
+            fn_name='cancelOffchainDelayedOrder', args=[self.wallet_address])
+
+        tx_params = self._get_tx_params(to=market_contract.address, value=0)
+        tx_params['data'] = data_tx
+
+        if execute_now:
+            tx_token = self.execute_transaction(tx_params)
+            print(f"Cancelling order for {token_symbol}")
+            print(f"TX: {tx_token}")
+            time.sleep(1)
+            return tx_token
+        else:
+            return {
+                "token": token_symbol.upper(),
+                "tx_data": tx_params}
 
     def open_limit(
             self,
