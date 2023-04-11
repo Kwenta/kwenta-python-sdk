@@ -409,7 +409,6 @@ class Kwenta:
                 tx_token = self.execute_transaction(tx_params)
                 print(f"Updating Position by {token_amount}")
                 print(f"TX: {tx_token}")
-                time.sleep(1)
                 return tx_token
             else:
                 return {"token": token_symbol.upper(),
@@ -463,7 +462,8 @@ class Kwenta:
         if execute_now:
             tx_token = self.execute_transaction(tx_params)
             print(f"TX: {tx_token}")
-            time.sleep(1)
+
+            self._wait_and_execute(tx_token, token_symbol)
             return tx_token
         else:
             return {
@@ -515,7 +515,6 @@ class Kwenta:
             tx_token = self.execute_transaction(tx_params)
             print(f"Closing Position by {-current_position['size']}")
             print(f"TX: {tx_token}")
-            time.sleep(1)
             return tx_token
         else:
             return {
@@ -607,7 +606,6 @@ class Kwenta:
                 tx_token = self.execute_transaction(tx_params)
                 print(f"Updating Position by {size_delta}")
                 print(f"TX: {tx_token}")
-                time.sleep(1)
                 return tx_token
             else:
                 return {"token": token_symbol.upper(),
@@ -657,7 +655,6 @@ class Kwenta:
             tx_token = self.execute_transaction(tx_params)
             print(f"Cancelling order for {token_symbol}")
             print(f"TX: {tx_token}")
-            time.sleep(1)
             return tx_token
         else:
             return {
@@ -711,12 +708,41 @@ class Kwenta:
             tx_token = self.execute_transaction(tx_params)
             print(f"Executing order for {token_symbol}")
             print(f"TX: {tx_token}")
-            time.sleep(1)
             return tx_token
         else:
             return {
                 "token": token_symbol.upper(),
                 "tx_data": tx_params}
+
+    def _wait_and_execute(self, tx, token_symbol):
+        """
+        Wait for a transaction receipt and execute the order when executable
+        ...
+
+        Attributes
+        ----------
+        tx: str
+            Transaction hash for the order that was submitted
+        token_symbol : str
+            token symbol from list of supported asset
+
+        Returns
+        ----------
+        str: token transfer Tx id
+        """
+        # wait for receipt
+        self.web3.eth.wait_for_transaction_receipt(tx)
+
+        # get delayed order
+        delayed_order = self.check_delayed_orders(token_symbol)
+
+        # wait until executable
+        while min(time.time(), self.web3.eth.get_block('latest').timestamp) < delayed_order['executable_time'] + 5:
+            print('Order not executable yet, waiting...')
+            time.sleep(2)
+
+        tx_execute = self.execute_order(token_symbol, execute_now=True)
+        print(f'Executing tx: {tx_execute}')
 
     def open_limit(
             self,
