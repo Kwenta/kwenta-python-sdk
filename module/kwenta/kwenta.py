@@ -125,9 +125,7 @@ class Kwenta:
             'chainId': self.network_id,
             'value': value,
             'gas': 1500000,
-            'gasPrice': self.web3.to_wei(
-                '0.4',
-                'gwei'),
+            'gasPrice': self.web3.eth.gas_price,
             'nonce': self.web3.eth.get_transaction_count(self.wallet_address)
         }
 
