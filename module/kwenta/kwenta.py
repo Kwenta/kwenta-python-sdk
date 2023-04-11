@@ -623,7 +623,7 @@ class Kwenta:
         Attributes
         ----------
         account : str
-            address of the account to cancel or defaults to connected wallet
+            address of the account to cancel. (defaults to connected wallet)
         token_symbol : str
             token symbol from list of supported asset
 
@@ -640,7 +640,7 @@ class Kwenta:
         if not delayed_order:
             print("No open order")
             return None
-        # Flip position size to the opposite direction
+
         data_tx = market_contract.encodeABI(
             fn_name='cancelOffchainDelayedOrder', args=[self.wallet_address])
 
@@ -650,6 +650,60 @@ class Kwenta:
         if execute_now:
             tx_token = self.execute_transaction(tx_params)
             print(f"Cancelling order for {token_symbol}")
+            print(f"TX: {tx_token}")
+            time.sleep(1)
+            return tx_token
+        else:
+            return {
+                "token": token_symbol.upper(),
+                "tx_data": tx_params}
+
+    def execute_order(
+            self,
+            token_symbol: str,
+            account: str = None,
+            execute_now: bool = False) -> str:
+        """
+        Executes an open order
+        ...
+
+        Attributes
+        ----------
+        account : str
+            address of the account to execute. (defaults to connected wallet)
+        token_symbol : str
+            token symbol from list of supported asset
+
+        Returns
+        ----------
+        str: transaction hash for executing the order
+        """
+        market_contract = self.get_market_contract(token_symbol)
+        delayed_order = self.check_delayed_orders(token_symbol)
+
+        if account is None:
+            account = self.wallet_address
+
+        if not delayed_order:
+            print("No open order")
+            return None
+
+        # get price update data
+        price_update_data = self.pyth.price_update_data(token_symbol)
+
+        if not price_update_data:
+            raise Exception(
+                "Failed to get price update data from price service")
+
+        data_tx = market_contract.encodeABI(
+            fn_name='executeOffchainDelayedOrder', args=[self.wallet_address, [price_update_data]])
+
+        tx_params = self._get_tx_params(to=market_contract.address, value=1)
+        tx_params['data'] = data_tx
+
+        if execute_now:
+            tx_token = self.execute_transaction(tx_params)
+            print(f"Executing order for {token_symbol}")
             print(f"TX: {tx_token}")
             time.sleep(1)
             return tx_token

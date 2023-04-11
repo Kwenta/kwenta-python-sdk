@@ -30,8 +30,7 @@ class Pyth:
         try:
             response = requests.get(url, params)
             price_data = base64.b64decode(response.json()[0])
-            price_data_hex = price_data.hex()
-            return f'0x{price_data_hex}'
+            return price_data
         except Exception as e:
             print(e)
             return None
