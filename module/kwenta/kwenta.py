@@ -265,7 +265,7 @@ class Kwenta:
         return {"margin_remaining": margin_allowed,
                 "margin_remaining_usd": margin_usd}
 
-    def can_liquidate(self, token_symbol: str) -> dict:
+    def can_liquidate(self, token_symbol: str, wallet_address: str) -> dict:
         """
         Checks if Liquidation is possible for wallet
         ...
@@ -280,11 +280,93 @@ class Kwenta:
         """
         market_contract = self.get_market_contract(token_symbol)
         liquidation_check = market_contract.functions.canLiquidate(
-            self.wallet_address).call()
+            wallet_address).call()
         liquidation_price = market_contract.functions.liquidationPrice(
-            self.wallet_address).call()
+            wallet_address).call()
         return {"liq_possible": liquidation_check,
                 "liq_price": liquidation_price}
+
+    def liquidatePosition(self, token_symbol: str, wallet_address: str, execute_now: bool = False) -> dict:
+        """
+        Checks if Liquidation is possible for wallet
+        ...
+
+        Attributes
+        ----------
+        token_symbol : str
+            token symbol from list of supported asset
+        wallet_address : str
+            Wallet address to liquidate
+        Returns
+        ----------
+        Dict: Liquidation of position
+        """
+        market_contract = self.get_market_contract(token_symbol)
+        liquidation_check = market_contract.functions.canLiquidate(
+            self.wallet_address).call()
+        # check for if liquidation is possible
+        if liquidation_check == True:
+            market_contract.functions.liquidatePosition(wallet_address).call()
+            data_tx = market_contract.encodeABI(
+                fn_name='liquidatePosition', args=[self.wallet_address])
+            tx_params = self._get_tx_params(
+                to=market_contract.address, value=1)
+            tx_params['data'] = data_tx
+            if execute_now:
+                tx_token = self.execute_transaction(tx_params)
+                print(f"Executing Liquidation for {token_symbol}")
+                print(f"TX: {tx_token}")
+                time.sleep(1)
+                return tx_token
+            else:
+                return {
+                    "token": token_symbol.upper(),
+                    "tx_data": tx_params}
+        else:
+            return {
+                "token": token_symbol.upper(),
+                "tx_data": "N/A, Cannot Liquidate Position."}
+
+    def flagPosition(self, token_symbol: str, wallet_address: str, execute_now: bool = False) -> dict:
+        """
+        Checks if Liquidation is possible for wallet
+        ...
+
+        Attributes
+        ----------
+        token_symbol : str
+            token symbol from list of supported asset
+        wallet_address : str
+            Wallet address to flag for liquidation
+        Returns
+        ----------
+        Dict: flag Liquidation of position
+        """
+        market_contract = self.get_market_contract(token_symbol)
+        liquidation_check = market_contract.functions.canLiquidate(
+            self.wallet_address).call()
+        # check for if liquidation is possible
+        if liquidation_check == True:
+            market_contract.functions.flagPosition(wallet_address).call()
+            data_tx = market_contract.encodeABI(
+                fn_name='flagPosition', args=[self.wallet_address])
+            tx_params = self._get_tx_params(
+                to=market_contract.address, value=1)
+            tx_params['data'] = data_tx
+            if execute_now:
+                tx_token = self.execute_transaction(tx_params)
+                print(f"Executing Flag for {token_symbol}")
+                print(f"TX: {tx_token}")
+                time.sleep(1)
+                return tx_token
+            else:
+                return {
+                    "token": token_symbol.upper(),
+                    "tx_data": tx_params}
+        else:
+            return {
+                "token": token_symbol.upper(),
+                "tx_data": "N/A, Cannot Flag Position."}
 
     def get_market_skew(self, token_symbol: str) -> dict:
         """
