@@ -3,10 +3,11 @@ import warnings
 from web3 import Web3
 from web3.types import TxParams
 from decimal import Decimal
-from .constants import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_SLIPPAGE, DEFAULT_GQL_ENDPOINT_PERPS, DEFAULT_GQL_ENDPOINT_RATES
+from .constants import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_SLIPPAGE, DEFAULT_GQL_ENDPOINT_PERPS, DEFAULT_GQL_ENDPOINT_RATES, DEFAULT_PRICE_SERVICE_ENDPOINTS
 from .contracts import abis, addresses
 from .alerts import Alerts
 from .queries import Queries
+from .pyth import Pyth
 
 warnings.filterwarnings('ignore')
 
@@ -20,6 +21,7 @@ class Kwenta:
             network_id: int = None,
             gql_endpoint_perps: str = None,
             gql_endpoint_rates: str = None,
+            price_service_endpoint: str = None,
             telegram_token: str = None,
             telegram_channel_name: str = None):
         # set default values
@@ -56,6 +58,13 @@ class Kwenta:
         self.queries = Queries(
             gql_endpoint_perps=gql_endpoint_perps,
             gql_endpoint_rates=gql_endpoint_rates)
+
+        # init pyth
+        if not price_service_endpoint:
+            price_service_endpoint = DEFAULT_PRICE_SERVICE_ENDPOINTS[self.network_id]
+
+        self.pyth = Pyth(
+            self.network_id, price_service_endpoint=price_service_endpoint)
 
     def _load_markets(self):
         """
@@ -170,8 +179,16 @@ class Kwenta:
             token symbol from list of supported asset
         """
         market_contract = self.market_contracts[token_symbol]
-        return (market_contract.functions.delayedOrders(
-            self.wallet_address).call())[0]
+        delayed_order = market_contract.functions.delayedOrders(
+            self.wallet_address).call()
+
+        return {
+            'is_open': True if delayed_order[2] > 0 else False,
+            'size_delta': delayed_order[1],
+            'desired_fill_price': delayed_order[2],
+            'intention_time': int(delayed_order[7]),
+            'executable_time': int(delayed_order[7]) + 15 if int(delayed_order[7]) > 0 else 0,
+        }
 
     def get_current_asset_price(self, token_symbol: str) -> dict:
         """
@@ -601,7 +618,107 @@ class Kwenta:
                         "max_leverage": max_leverage / (10**18),
                         "leveraged_percent": (size_delta / max_leverage) * 100,
                         "tx_data": tx_params}
-        return 'some'
+
+    def cancel_order(
+            self,
+            token_symbol: str,
+            account: str = None,
+            execute_now: bool = False) -> str:
+        """
+        Cancels an open order
+        ...
+
+        Attributes
+        ----------
+        account : str
+            address of the account to cancel. (defaults to connected wallet)
+        token_symbol : str
+            token symbol from list of supported asset
+
+        Returns
+        ----------
+        str: transaction hash for closing the order
+        """
+        market_contract = self.get_market_contract(token_symbol)
+        delayed_order = self.check_delayed_orders(token_symbol)
+
+        if account is None:
+            account = self.wallet_address
+
+        if not delayed_order['is_open']:
+            print("No open order")
+            return None
+
+        data_tx = market_contract.encodeABI(
+            fn_name='cancelOffchainDelayedOrder', args=[self.wallet_address])
+
+        tx_params = self._get_tx_params(to=market_contract.address, value=0)
+        tx_params['data'] = data_tx
+
+        if execute_now:
+            tx_token = self.execute_transaction(tx_params)
+            print(f"Cancelling order for {token_symbol}")
+            print(f"TX: {tx_token}")
+            time.sleep(1)
+            return tx_token
+        else:
+            return {
+                "token": token_symbol.upper(),
+                "tx_data": tx_params}
+
+    def execute_order(
+            self,
+            token_symbol: str,
+            account: str = None,
+            execute_now: bool = False) -> str:
+        """
+        Executes an open order
+        ...
+
+        Attributes
+        ----------
+        account : str
+            address of the account to execute. (defaults to connected wallet)
+        token_symbol : str
+            token symbol from list of supported asset
+
+        Returns
+        ----------
+        str: transaction hash for executing the order
+        """
+        market_contract = self.get_market_contract(token_symbol)
+        delayed_order = self.check_delayed_orders(token_symbol)
+
+        if account is None:
+            account = self.wallet_address
+
+        if not delayed_order['is_open']:
+            print("No open order")
+            return None
+
+        # get price update data
+        price_update_data = self.pyth.price_update_data(token_symbol)
+
+        if not price_update_data:
+            raise Exception(
+                "Failed to get price update data from price service")
+
+        data_tx = market_contract.encodeABI(
+            fn_name='executeOffchainDelayedOrder', args=[self.wallet_address, [price_update_data]])
+
+        tx_params = self._get_tx_params(to=market_contract.address, value=1)
+        tx_params['data'] = data_tx
+
+        if execute_now:
+            tx_token = self.execute_transaction(tx_params)
+            print(f"Executing order for {token_symbol}")
+            print(f"TX: {tx_token}")
+            time.sleep(1)
+            return tx_token
+        else:
+            return {
+                "token": token_symbol.upper(),
+                "tx_data": tx_params}
 
     def open_limit(
             self,
