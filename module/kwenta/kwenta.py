@@ -179,8 +179,16 @@ class Kwenta:
             token symbol from list of supported asset
         """
         market_contract = self.market_contracts[token_symbol]
-        return (market_contract.functions.delayedOrders(
-            self.wallet_address).call())[0]
+        delayed_order = market_contract.functions.delayedOrders(
+            self.wallet_address).call()
+
+        return {
+            'is_open': True if delayed_order[2] > 0 else False,
+            'size_delta': delayed_order[1],
+            'desired_fill_price': delayed_order[2],
+            'intention_time': int(delayed_order[7]),
+            'executable_time': int(delayed_order[7]) + 15 if int(delayed_order[7]) > 0 else 0,
+        }
 
     def get_current_asset_price(self, token_symbol: str) -> dict:
         """
@@ -637,7 +645,7 @@ class Kwenta:
         if account is None:
             account = self.wallet_address
 
-        if not delayed_order:
+        if not delayed_order['is_open']:
             print("No open order")
             return None
 
@@ -684,7 +692,7 @@ class Kwenta:
         if account is None:
             account = self.wallet_address
 
-        if not delayed_order:
+        if not delayed_order['is_open']:
             print("No open order")
             return None
 
