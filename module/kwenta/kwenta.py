@@ -85,7 +85,7 @@ class Kwenta:
             normalized_market = {
                 "market_address": market[0],
                 "asset": market[1].decode('utf-8').strip("\x00"),
-                "key": market[2].decode('utf-8').strip("\x00"),
+                "key": market[2],
                 "maxLeverage": market[3],
                 "price": market[4],
                 "marketSize": market[5],
