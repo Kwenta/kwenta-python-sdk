@@ -286,7 +286,7 @@ class Kwenta:
         return {"liq_possible": liquidation_check,
                 "liq_price": liquidation_price}
 
-    def liquidatePosition(self, token_symbol: str, wallet_address: str, execute_now: bool = False) -> dict:
+    def liquidate_position(self, token_symbol: str, wallet_address: str, execute_now: bool = False) -> dict:
         """
         Checks if Liquidation is possible for wallet
         ...
