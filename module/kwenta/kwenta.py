@@ -327,7 +327,7 @@ class Kwenta:
                 "token": token_symbol.upper(),
                 "tx_data": "N/A, Cannot Liquidate Position."}
 
-    def flagPosition(self, token_symbol: str, wallet_address: str, execute_now: bool = False) -> dict:
+    def flag_position(self, token_symbol: str, wallet_address: str, execute_now: bool = False) -> dict:
         """
         Checks if Liquidation is possible for wallet
         ...
