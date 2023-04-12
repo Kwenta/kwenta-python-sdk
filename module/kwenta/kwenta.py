@@ -306,7 +306,6 @@ class Kwenta:
             self.wallet_address).call()
         # check for if liquidation is possible
         if liquidation_check == True:
-            market_contract.functions.liquidatePosition(wallet_address).call()
             data_tx = market_contract.encodeABI(
                 fn_name='liquidatePosition', args=[self.wallet_address])
             tx_params = self._get_tx_params(
@@ -347,7 +346,6 @@ class Kwenta:
             self.wallet_address).call()
         # check for if liquidation is possible
         if liquidation_check == True:
-            market_contract.functions.flagPosition(wallet_address).call()
             data_tx = market_contract.encodeABI(
                 fn_name='flagPosition', args=[self.wallet_address])
             tx_params = self._get_tx_params(
