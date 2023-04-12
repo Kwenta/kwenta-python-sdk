@@ -19,6 +19,7 @@ class Kwenta:
             wallet_address: str,
             private_key: str = None,
             network_id: int = None,
+            use_estimate_gas: bool = True,
             gql_endpoint_perps: str = None,
             gql_endpoint_rates: str = None,
             price_service_endpoint: str = None,
@@ -31,6 +32,7 @@ class Kwenta:
         # init account variables
         self.private_key = private_key
         self.wallet_address = wallet_address
+        self.use_estimate_gas = use_estimate_gas
 
         # init provider
         w3 = Web3(Web3.HTTPProvider(provider_rpc))
@@ -124,7 +126,6 @@ class Kwenta:
             'to': to,
             'chainId': self.network_id,
             'value': value,
-            'gas': 1500000,
             'gasPrice': self.web3.eth.gas_price,
             'nonce': self.web3.eth.get_transaction_count(self.wallet_address)
         }
@@ -160,13 +161,20 @@ class Kwenta:
         """
         if self.private_key is None:
             raise Exception("No private key specified.")
+
+        if "gas" not in tx_data:
+            if self.use_estimate_gas:
+                tx_data["gas"] = int(self.web3.eth.estimate_gas(tx_data) * 1.2)
+            else:
+                tx_data["gas"] = 1500000
+
         signed_txn = self.web3.eth.account.sign_transaction(
             tx_data, private_key=self.private_key)
         tx_token = self.web3.eth.send_raw_transaction(
             signed_txn.rawTransaction)
         return self.web3.to_hex(tx_token)
 
-    def check_delayed_orders(self, token_symbol: str) -> bool:
+    def check_delayed_orders(self, token_symbol: str, wallet_address: str = None) -> dict:
         """
         Check if delayed order is in queue
         ...
@@ -176,9 +184,11 @@ class Kwenta:
         token_symbol : str
             token symbol from list of supported asset
         """
+        if not wallet_address:
+            wallet_address = self.wallet_address
         market_contract = self.market_contracts[token_symbol]
         delayed_order = market_contract.functions.delayedOrders(
-            self.wallet_address).call()
+            wallet_address).call()
 
         return {
             'is_open': True if delayed_order[2] > 0 else False,
@@ -207,7 +217,7 @@ class Kwenta:
         usd_price = self.web3.from_wei(wei_price, 'ether')
         return {"usd": usd_price, "wei": wei_price}
 
-    def get_current_position(self, token_symbol: str) -> dict:
+    def get_current_position(self, token_symbol: str, wallet_address: str = None) -> dict:
         """
         Gets Current Position Data
         ...
@@ -220,9 +230,12 @@ class Kwenta:
         ----------
         Dict: position information
         """
+        if not wallet_address:
+            wallet_address = self.wallet_address
+
         market_contract = self.get_market_contract(token_symbol)
         id, last_funding_index, margin, last_price, size = market_contract.functions.positions(
-            self.wallet_address).call()
+            wallet_address).call()
         current_asset_price = self.get_current_asset_price(token_symbol)
 
         # clean usd values
