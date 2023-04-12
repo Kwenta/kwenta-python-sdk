@@ -265,7 +265,7 @@ class Kwenta:
         return {"margin_remaining": margin_allowed,
                 "margin_remaining_usd": margin_usd}
 
-    def can_liquidate(self, token_symbol: str, wallet_address: str) -> dict:
+    def can_liquidate(self, token_symbol: str, wallet_address: str=None) -> dict:
         """
         Checks if Liquidation is possible for wallet
         ...
@@ -278,6 +278,8 @@ class Kwenta:
         ----------
         Dict: Liquidation Data
         """
+        if not wallet_address:
+            wallet_address = self.wallet_address
         market_contract = self.get_market_contract(token_symbol)
         liquidation_check = market_contract.functions.canLiquidate(
             wallet_address).call()
@@ -286,7 +288,7 @@ class Kwenta:
         return {"liq_possible": liquidation_check,
                 "liq_price": liquidation_price}
 
-    def liquidate_position(self, token_symbol: str, wallet_address: str, execute_now: bool = False) -> dict:
+    def liquidate_position(self, token_symbol: str, wallet_address: str=None, execute_now: bool = False) -> dict:
         """
         Checks if Liquidation is possible for wallet
         ...
@@ -301,6 +303,8 @@ class Kwenta:
         ----------
         Dict: Liquidation of position
         """
+        if not wallet_address:
+            wallet_address = self.wallet_address
         market_contract = self.get_market_contract(token_symbol)
         liquidation_check = market_contract.functions.canLiquidate(
             self.wallet_address).call()
@@ -326,7 +330,7 @@ class Kwenta:
                 "token": token_symbol.upper(),
                 "tx_data": "N/A, Cannot Liquidate Position."}
 
-    def flag_position(self, token_symbol: str, wallet_address: str, execute_now: bool = False) -> dict:
+    def flag_position(self, token_symbol: str, wallet_address: str=None, execute_now: bool = False) -> dict:
         """
         Checks if Liquidation is possible for wallet
         ...
@@ -341,6 +345,8 @@ class Kwenta:
         ----------
         Dict: flag Liquidation of position
         """
+        if not wallet_address:
+            wallet_address = self.wallet_address
         market_contract = self.get_market_contract(token_symbol)
         liquidation_check = market_contract.functions.canLiquidate(
             self.wallet_address).call()
