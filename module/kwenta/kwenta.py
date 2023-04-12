@@ -1,7 +1,9 @@
+import asyncio
 import time
 import warnings
 from web3 import Web3
 from web3.types import TxParams
+from web3.middleware import geth_poa_middleware
 from decimal import Decimal
 from .constants import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_SLIPPAGE, DEFAULT_GQL_ENDPOINT_PERPS, DEFAULT_GQL_ENDPOINT_RATES, DEFAULT_PRICE_SERVICE_ENDPOINTS
 from .contracts import abis, addresses
@@ -35,11 +37,18 @@ class Kwenta:
         self.use_estimate_gas = use_estimate_gas
 
         # init provider
-        w3 = Web3(Web3.HTTPProvider(provider_rpc))
+        if provider_rpc.startswith('https'):
+            w3 = Web3(Web3.HTTPProvider(provider_rpc))
+        elif provider_rpc.startswith('wss'):
+            w3 = Web3(Web3.WebsocketProvider(provider_rpc))
+        else:
+            raise Exception("RPC endpoint is invalid")
+
         if w3.eth.chain_id != network_id:
             raise Exception("The RPC `chain_id` must match `network_id`")
         else:
             self.network_id = network_id
+            w3.middleware_onion.inject(geth_poa_middleware, layer=0)
             self.web3 = w3
 
         # init contracts
@@ -711,11 +720,11 @@ class Kwenta:
         ----------
         str: transaction hash for executing the order
         """
-        market_contract = self.get_market_contract(token_symbol)
-        delayed_order = self.check_delayed_orders(token_symbol)
-
-        if account is None:
+        if not account:
             account = self.wallet_address
+
+        market_contract = self.get_market_contract(token_symbol)
+        delayed_order = self.check_delayed_orders(token_symbol, account)
 
         if not delayed_order['is_open']:
             print("No open order")
@@ -729,7 +738,7 @@ class Kwenta:
                 "Failed to get price update data from price service")
 
         data_tx = market_contract.encodeABI(
-            fn_name='executeOffchainDelayedOrder', args=[self.wallet_address, [price_update_data]])
+            fn_name='executeOffchainDelayedOrder', args=[account, [price_update_data]])
 
         tx_params = self._get_tx_params(to=market_contract.address, value=1)
         tx_params['data'] = data_tx
@@ -751,7 +760,7 @@ class Kwenta:
                 "token": token_symbol.upper(),
                 "tx_data": tx_params}
 
-    def _wait_and_execute(self, tx, token_symbol, retries=3, retry_interval=1):
+    async def _wait_and_execute(self, tx, token_symbol, retries=3, retry_interval=1):
         """
         Wait for a transaction receipt and execute the order when executable
         ...
@@ -797,6 +806,60 @@ class Kwenta:
         if gas_estimate:
             print(f'Gas estimate for executing order: {gas_estimate}')
             tx_execute = self.execute_order(token_symbol, execute_now=True)
+            print(f'Executing tx: {tx_execute}')
+        else:
+            print(
+                'Gas estimation failed after multiple retries, not executing the order.')
+
+    async def execute_for_address(self, token_symbol, wallet_address, retries=5, retry_interval=1):
+        """
+        Check an addresses delayed orders and execute the order when executable
+        ...
+
+        Attributes
+        ----------
+        token_symbol : str
+            token symbol from list of supported asset
+        wallet_address: str
+            Transaction hash for the order that was submitted
+        """
+        if not wallet_address:
+            wallet_address = self.wallet_address
+
+        # check delayed orders
+        delayed_order = self.check_delayed_orders(token_symbol, wallet_address)
+
+        # if no order, exit
+        if not delayed_order['is_open']:
+            print("No delayed order open")
+            return
+
+        # wait until executable
+        print('Waiting until order is executable')
+        await asyncio.sleep(delayed_order['executable_time'] - time.time())
+
+        # set up the estimate
+        gas_estimate = None
+        attempt = 0
+
+        # Retry gas estimation multiple times
+        while attempt < retries:
+            gas_estimate = self.execute_order(
+                token_symbol, account=wallet_address, estimate_gas=True)
+
+            if gas_estimate is not None:
+                break
+
+            print(
+                f'Gas estimation failed, retrying in {retry_interval} seconds...')
+            await asyncio.sleep(retry_interval)
+            attempt += 1
+
+        # If gas estimation is successful, execute the order
+        if gas_estimate:
+            print(f'Gas estimate for executing order: {gas_estimate}')
+            tx_execute = self.execute_order(
+                token_symbol, account=wallet_address, execute_now=True)
             print(f'Executing tx: {tx_execute}')
         else:
             print(
