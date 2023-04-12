@@ -409,7 +409,6 @@ class Kwenta:
                 tx_token = self.execute_transaction(tx_params)
                 print(f"Updating Position by {token_amount}")
                 print(f"TX: {tx_token}")
-                time.sleep(1)
                 return tx_token
             else:
                 return {"token": token_symbol.upper(),
@@ -422,7 +421,8 @@ class Kwenta:
             token_symbol: str,
             size_delta: float,
             slippage: float = DEFAULT_SLIPPAGE,
-            execute_now: bool = False) -> str:
+            execute_now: bool = False,
+            self_execute: bool = False) -> str:
         """
         Submits a delayed offchain order with a size of `size_delta`
         ...
@@ -437,6 +437,9 @@ class Kwenta:
             wallet_address of wallet to check
         slippage : float
             slippage percentage
+        self_execute : bool
+            If True, wait until the order is executable and execute it
+
         Returns
         ----------
         str: token transfer Tx id
@@ -463,7 +466,9 @@ class Kwenta:
         if execute_now:
             tx_token = self.execute_transaction(tx_params)
             print(f"TX: {tx_token}")
-            time.sleep(1)
+
+            if self_execute:
+                self._wait_and_execute(tx_token, token_symbol)
             return tx_token
         else:
             return {
@@ -475,7 +480,8 @@ class Kwenta:
             self,
             token_symbol: str,
             slippage: float = DEFAULT_SLIPPAGE,
-            execute_now: bool = False) -> str:
+            execute_now: bool = False,
+            self_execute: bool = False) -> str:
         """
         Fully closes account position
         ...
@@ -486,6 +492,8 @@ class Kwenta:
             token symbol from list of supported asset
         slippage : float
             slippage percentage
+        self_execute : bool
+            If True, wait until the order is executable and execute it
 
         Returns
         ----------
@@ -515,7 +523,9 @@ class Kwenta:
             tx_token = self.execute_transaction(tx_params)
             print(f"Closing Position by {-current_position['size']}")
             print(f"TX: {tx_token}")
-            time.sleep(1)
+            if self_execute:
+                self._wait_and_execute(tx_token, token_symbol)
+
             return tx_token
         else:
             return {
@@ -530,7 +540,8 @@ class Kwenta:
             size_delta: float = None,
             slippage: float = DEFAULT_SLIPPAGE,
             leverage_multiplier: float = None,
-            execute_now: bool = False) -> str:
+            execute_now: bool = False,
+            self_execute: bool = False) -> str:
         """
         Open account position in a direction
         ...
@@ -547,6 +558,8 @@ class Kwenta:
             Multiplier of Leverage to use when creating order. Based on available margin in account.
         slippage : float
             slippage percentage
+        self_execute : bool
+            If True, wait until the order is executable and execute it
 
         *Use either size_delta or leverage_multiplier.
 
@@ -607,7 +620,8 @@ class Kwenta:
                 tx_token = self.execute_transaction(tx_params)
                 print(f"Updating Position by {size_delta}")
                 print(f"TX: {tx_token}")
-                time.sleep(1)
+                if self_execute:
+                    self._wait_and_execute(tx_token, token_symbol)
                 return tx_token
             else:
                 return {"token": token_symbol.upper(),
@@ -657,7 +671,6 @@ class Kwenta:
             tx_token = self.execute_transaction(tx_params)
             print(f"Cancelling order for {token_symbol}")
             print(f"TX: {tx_token}")
-            time.sleep(1)
             return tx_token
         else:
             return {
@@ -668,7 +681,8 @@ class Kwenta:
             self,
             token_symbol: str,
             account: str = None,
-            execute_now: bool = False) -> str:
+            execute_now: bool = False,
+            estimate_gas: bool = False) -> str:
         """
         Executes an open order
         ...
@@ -711,12 +725,69 @@ class Kwenta:
             tx_token = self.execute_transaction(tx_params)
             print(f"Executing order for {token_symbol}")
             print(f"TX: {tx_token}")
-            time.sleep(1)
             return tx_token
+        elif estimate_gas:
+            try:
+                gas_estimate = self.web3.eth.estimate_gas(tx_params)
+                return gas_estimate
+            except Exception as e:
+                print(f'Error estimating gas: {e}')
+                return None
         else:
             return {
                 "token": token_symbol.upper(),
                 "tx_data": tx_params}
+
+    def _wait_and_execute(self, tx, token_symbol, retries=3, retry_interval=1):
+        """
+        Wait for a transaction receipt and execute the order when executable
+        ...
+
+        Attributes
+        ----------
+        tx: str
+            Transaction hash for the order that was submitted
+        token_symbol : str
+            token symbol from list of supported asset
+
+        Returns
+        ----------
+        str: token transfer Tx id
+        """
+        # wait for receipt
+        self.web3.eth.wait_for_transaction_receipt(tx)
+
+        # get delayed order
+        delayed_order = self.check_delayed_orders(token_symbol)
+
+        # wait until executable
+        print('Waiting until order is executable')
+        time.sleep(delayed_order['executable_time'] - time.time())
+
+        # set up the estimate
+        gas_estimate = None
+        attempt = 0
+
+        # Retry gas estimation multiple times
+        while attempt < retries:
+            gas_estimate = self.execute_order(token_symbol, estimate_gas=True)
+
+            if gas_estimate is not None:
+                break
+
+            print(
+                f'Gas estimation failed, retrying in {retry_interval} seconds...')
+            time.sleep(retry_interval)
+            attempt += 1
+
+        # If gas estimation is successful, execute the order
+        if gas_estimate:
+            print(f'Gas estimate for executing order: {gas_estimate}')
+            tx_execute = self.execute_order(token_symbol, execute_now=True)
+            print(f'Executing tx: {tx_execute}')
+        else:
+            print(
+                'Gas estimation failed after multiple retries, not executing the order.')
 
     def open_limit(
             self,
