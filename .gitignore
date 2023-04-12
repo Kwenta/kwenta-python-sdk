@@ -130,3 +130,4 @@ dmypy.json
 
 # VS Code
 .vs_code/
+scripts/
