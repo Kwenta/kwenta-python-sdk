@@ -335,7 +335,7 @@ class Kwenta:
             data_tx = market_contract.encodeABI(
                 fn_name='liquidatePosition', args=[wallet_address])
             tx_params = self._get_tx_params(
-                to=market_contract.address, value=1)
+                to=market_contract.address)
             tx_params['data'] = data_tx
             if execute_now:
                 tx_token = self.execute_transaction(tx_params)
@@ -377,7 +377,7 @@ class Kwenta:
             data_tx = market_contract.encodeABI(
                 fn_name='flagPosition', args=[wallet_address])
             tx_params = self._get_tx_params(
-                to=market_contract.address, value=1)
+                to=market_contract.address)
             tx_params['data'] = data_tx
             if execute_now:
                 tx_token = self.execute_transaction(tx_params)
