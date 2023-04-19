@@ -67,6 +67,7 @@ class Kwenta:
             gql_endpoint_rates = DEFAULT_GQL_ENDPOINT_RATES[self.network_id]
 
         self.queries = Queries(
+            self,
             gql_endpoint_perps=gql_endpoint_perps,
             gql_endpoint_rates=gql_endpoint_rates)
 
@@ -287,7 +288,7 @@ class Kwenta:
         return {"margin_remaining": margin_allowed,
                 "margin_remaining_usd": margin_usd}
 
-    def can_liquidate(self, token_symbol: str, wallet_address: str=None) -> dict:
+    def can_liquidate(self, token_symbol: str, wallet_address: str = None) -> dict:
         """
         Checks if Liquidation is possible for wallet
         ...
@@ -310,7 +311,7 @@ class Kwenta:
         return {"liq_possible": liquidation_check,
                 "liq_price": liquidation_price}
 
-    def liquidate_position(self, token_symbol: str, wallet_address: str=None, execute_now: bool = False) -> dict:
+    def liquidate_position(self, token_symbol: str, wallet_address: str = None, execute_now: bool = False) -> dict:
         """
         Checks if Liquidation is possible for wallet
         ...
@@ -352,7 +353,7 @@ class Kwenta:
                 "token": token_symbol.upper(),
                 "tx_data": "N/A, Cannot Liquidate Position."}
 
-    def flag_position(self, token_symbol: str, wallet_address: str=None, execute_now: bool = False) -> dict:
+    def flag_position(self, token_symbol: str, wallet_address: str = None, execute_now: bool = False) -> dict:
         """
         Checks if Liquidation is possible for wallet
         ...
