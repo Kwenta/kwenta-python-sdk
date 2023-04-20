@@ -50,6 +50,8 @@ class Kwenta:
             self.network_id = network_id
             w3.middleware_onion.inject(geth_poa_middleware, layer=0)
             self.web3 = w3
+            self.nonce = self.web3.eth.get_transaction_count(
+                self.wallet_address)
 
         # init contracts
         self.markets, self.market_contracts, self.susd_token = self._load_markets()
@@ -137,9 +139,8 @@ class Kwenta:
             'chainId': self.network_id,
             'value': value,
             'gasPrice': self.web3.eth.gas_price,
-            'nonce': self.web3.eth.get_transaction_count(self.wallet_address)
+            'nonce': self.nonce
         }
-
         return params
 
     def get_market_contract(self, token_symbol: str):
@@ -182,6 +183,10 @@ class Kwenta:
             tx_data, private_key=self.private_key)
         tx_token = self.web3.eth.send_raw_transaction(
             signed_txn.rawTransaction)
+
+        # increase nonce
+        self.nonce += 1
+
         return self.web3.to_hex(tx_token)
 
     def check_delayed_orders(self, token_symbol: str, wallet_address: str = None) -> dict:
