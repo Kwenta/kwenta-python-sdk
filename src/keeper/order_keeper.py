@@ -21,10 +21,13 @@ class Keeper:
     async def process_event(self, event, token_symbol):
         # Extract the required information from the event
         account = event["args"]["account"]
+        tracking_code = event["args"]["trackingCode"].decode(
+            'utf-8').rstrip('\x00')
 
         # Call get_delayed_order and wait for the executable time
-        print(f'executing for {account} for token {token_symbol} ')
-        await self.kwenta.execute_for_address(token_symbol, account)
+        if tracking_code == 'KWENTA':
+            print(f'executing for {account} for token {token_symbol}')
+            await self.kwenta.execute_for_address(token_symbol, account)
 
     async def monitor_events(self):
         PerpsMarkets = [self.kwenta.get_market_contract(
