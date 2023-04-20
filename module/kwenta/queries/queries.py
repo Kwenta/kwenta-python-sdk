@@ -71,7 +71,7 @@ class Queries:
             df = pd.DataFrame(all_results)
             return df
 
-    async def get_candles(self, token_symbol, time_back=72, period=1800):
+    async def candles(self, token_symbol, time_back=72, period=1800):
         """
         Gets historical data from subgraph
         ...
@@ -103,7 +103,7 @@ class Queries:
             'period': period
         }
         result = await self._run_query(queries['candles'], params, 'candles', url)
-        return clean_df(result)
+        return clean_df(result, config['candles'])
 
     async def trades_for_market(self, token_symbol: str = None, min_timestamp: int = 0, max_timestamp: int = int(time.time())):
         """

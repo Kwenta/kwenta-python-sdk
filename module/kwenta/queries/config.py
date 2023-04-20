@@ -1,4 +1,16 @@
 config = {
+    'candles': {
+        "id": ["id", "String"],
+        "synth": ["synth", "String"],
+        "open": ["open", "BigInt"],
+        "high": ["high", "BigInt"],
+        "low": ["low", "BigInt"],
+        "close": ["close", "BigInt"],
+        "timestamp": ["timestamp", "BigInt"],
+        "average": ["average", "BigInt"],
+        "period": ["period", "BigInt"],
+        "aggregatedPrices": ["aggregated_prices", "BigInt"],
+    },
     'trades': {
         "id": ["id", "ID"],
         "timestamp": ["timestamp", "BigInt"],
