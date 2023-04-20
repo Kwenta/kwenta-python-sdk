@@ -1,9 +1,35 @@
 import time
 import requests
 import pandas as pd
+from decimal import Decimal
 from gql import Client
 from gql.transport.aiohttp import AIOHTTPTransport
 from .gql import queries
+from .config import config
+
+
+def convert_wei(x):
+    try:
+        return float(Decimal(x) / Decimal(10**18))
+    except:
+        return x
+
+
+def convert_bytes(x):
+    return bytearray.fromhex(x[2:]).decode().replace('\x00', '')
+
+
+def clean_df(df, config):
+    new_columns = []
+    for col in df.columns:
+        type = config[col][1]
+        new_columns.append(config[col][0])
+        if type == 'Wei':
+            df[col] = df[col].apply(convert_wei)
+        elif type == 'Bytes':
+            df[col] = df[col].apply(convert_bytes)
+    df.columns = new_columns
+    return df
 
 
 class Queries:
@@ -77,9 +103,36 @@ class Queries:
             'period': period
         }
         result = await self._run_query(queries['candles'], params, 'candles', url)
-        return result
+        return clean_df(result)
 
-    async def trades_for_account(self, account: str = None):
+    async def trades_for_market(self, token_symbol: str = None, min_timestamp: int = 0, max_timestamp: int = int(time.time())):
+        """
+        Gets historical trades for a specified market
+        ...
+
+        Attributes
+        ----------
+        market_key : str
+            Market key of the market to fetch
+
+        Returns
+        ----------
+        df: pandas DataFrame containing trades for the market
+        """
+        market_key = self.kwenta.markets[token_symbol]['key']
+
+        # configure the query
+        url = self._gql_endpoint_perps
+        params = {
+            'last_id': '',
+            'market_key': market_key.hex(),
+            'min_timestamp': min_timestamp,
+            'max_timestamp': max_timestamp,
+        }
+        result = await self._run_query(queries['trades_market'], params, 'futuresTrades', url)
+        return clean_df(result, config['trades'])
+
+    async def trades_for_account(self, account: str = None, min_timestamp: int = 0, max_timestamp: int = int(time.time())):
         """
         Gets historical trades for a specified account
         ...
@@ -100,33 +153,37 @@ class Queries:
         url = self._gql_endpoint_perps
         params = {
             'last_id': '',
-            'account': account
+            'account': account,
+            'min_timestamp': min_timestamp,
+            'max_timestamp': max_timestamp,
         }
-        result = await self._run_query(queries['trades'], params, 'futuresTrades', url)
-        return result
+        result = await self._run_query(queries['trades_account'], params, 'futuresTrades', url)
+        return clean_df(result, config['trades'])
 
-    async def positions(self, account: str = None, token_symbol: str = None, open_only=False):
+    async def positions(self, open_only=False):
+        # configure the query
+        url = self._gql_endpoint_perps
+        params = {
+            'last_id': '',
+            'is_open': [True] if open_only else [True, False]
+        }
+        result = await self._run_query(queries['positions'], params, 'futuresPositions', url)
+        return clean_df(result, config['positions'])
+
+    async def positions_for_account(self, account: str = None, open_only=False):
         # get the account
         if not account:
             account = self.kwenta.wallet_address
-
-        # get the market key
-        if token_symbol:
-            bytes_market_key = self.kwenta.markets[token_symbol]['key']
-            market_key = hex(int.from_bytes(bytes_market_key, 'big'))
-        else:
-            market_key = None
 
         # configure the query
         url = self._gql_endpoint_perps
         params = {
             'last_id': '',
             'account': account,
-            'market_key': market_key,
-            'is_open': True if open_only else None
+            'is_open': [True] if open_only else [True, False]
         }
-        result = await self._run_query(queries['positions'], params, 'futuresPositions', url)
-        return result
+        result = await self._run_query(queries['positions_account'], params, 'futuresPositions', url)
+        return clean_df(result, config['positions'])
 
     def get_open_accounts(self, token_symbol):
         # init account and get all market keys into array
