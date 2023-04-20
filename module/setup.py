@@ -11,6 +11,7 @@ setup(
         "pandas",
         "requests",
         "web3>=6.0.0",
+        "gql"
     ],
     classifiers=[
         'Intended Audience :: Developers',

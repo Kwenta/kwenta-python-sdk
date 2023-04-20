@@ -50,6 +50,8 @@ class Kwenta:
             self.network_id = network_id
             w3.middleware_onion.inject(geth_poa_middleware, layer=0)
             self.web3 = w3
+            self.nonce = self.web3.eth.get_transaction_count(
+                self.wallet_address)
 
         # init contracts
         self.markets, self.market_contracts, self.susd_token = self._load_markets()
@@ -67,6 +69,7 @@ class Kwenta:
             gql_endpoint_rates = DEFAULT_GQL_ENDPOINT_RATES[self.network_id]
 
         self.queries = Queries(
+            self,
             gql_endpoint_perps=gql_endpoint_perps,
             gql_endpoint_rates=gql_endpoint_rates)
 
@@ -136,9 +139,8 @@ class Kwenta:
             'chainId': self.network_id,
             'value': value,
             'gasPrice': self.web3.eth.gas_price,
-            'nonce': self.web3.eth.get_transaction_count(self.wallet_address)
+            'nonce': self.nonce
         }
-
         return params
 
     def get_market_contract(self, token_symbol: str):
@@ -181,6 +183,10 @@ class Kwenta:
             tx_data, private_key=self.private_key)
         tx_token = self.web3.eth.send_raw_transaction(
             signed_txn.rawTransaction)
+
+        # increase nonce
+        self.nonce += 1
+
         return self.web3.to_hex(tx_token)
 
     def check_delayed_orders(self, token_symbol: str, wallet_address: str = None) -> dict:
@@ -287,7 +293,7 @@ class Kwenta:
         return {"margin_remaining": margin_allowed,
                 "margin_remaining_usd": margin_usd}
 
-    def can_liquidate(self, token_symbol: str, wallet_address: str=None) -> dict:
+    def can_liquidate(self, token_symbol: str, wallet_address: str = None) -> dict:
         """
         Checks if Liquidation is possible for wallet
         ...
@@ -310,7 +316,7 @@ class Kwenta:
         return {"liq_possible": liquidation_check,
                 "liq_price": liquidation_price}
 
-    def liquidate_position(self, token_symbol: str, wallet_address: str=None, execute_now: bool = False) -> dict:
+    def liquidate_position(self, token_symbol: str, wallet_address: str = None, execute_now: bool = False) -> dict:
         """
         Checks if Liquidation is possible for wallet
         ...
@@ -352,7 +358,7 @@ class Kwenta:
                 "token": token_symbol.upper(),
                 "tx_data": "N/A, Cannot Liquidate Position."}
 
-    def flag_position(self, token_symbol: str, wallet_address: str=None, execute_now: bool = False) -> dict:
+    def flag_position(self, token_symbol: str, wallet_address: str = None, execute_now: bool = False) -> dict:
         """
         Checks if Liquidation is possible for wallet
         ...
