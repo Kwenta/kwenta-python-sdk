@@ -28,7 +28,7 @@ setup(
     include_package_data=True,
     entry_points={
         'console_scripts': [
-            'kwenta = kwenta.cli.kwenta_cli:cli',
+            'kwenta = kwenta.cli.kwenta_cli:kwenta_cli',
         ],
     },
 )
