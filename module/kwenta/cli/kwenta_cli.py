@@ -22,18 +22,6 @@ def kwenta_cli():
 @click.pass_context
 def configure(ctx, provider_rpc, wallet_address, private_key, network_id, use_estimate_gas, gql_endpoint_perps, gql_endpoint_rates, price_service_endpoint, telegram_token, telegram_channel_name, state_file):
     try:
-        # kwenta_instance = Kwenta(
-        #     provider_rpc=provider_rpc,
-        #     wallet_address=wallet_address,
-        #     private_key=private_key,
-        #     network_id=network_id,
-        #     use_estimate_gas=use_estimate_gas,
-        #     gql_endpoint_perps=gql_endpoint_perps,
-        #     gql_endpoint_rates=gql_endpoint_rates,
-        #     price_service_endpoint=price_service_endpoint,
-        #     telegram_token=telegram_token,
-        #     telegram_channel_name=telegram_channel_name
-        # )
         kwenta_params = {
             "provider_rpc": provider_rpc,
             "wallet_address": wallet_address,
@@ -325,6 +313,7 @@ if __name__ == '__main__':
         kwenta_instance = load_kwenta_instance(state_file)
         click.echo("Kwenta instance loaded from the state file.")
     except Exception as e:
+        click.echo(f"State File Location: {str(state_file)}")
         click.echo(f"Error: {str(e)}")
     kwenta_cli()
 
