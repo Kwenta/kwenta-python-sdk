@@ -18,7 +18,7 @@ addresses = {
         10: '0x8c6f28f2f1a3c87f0f938b96d27520d9751ec8d9'
     },
     "PerpsV2MarketData": {
-        10: '0xF7D3D05cCeEEcC9d77864Da3DdE67Ce9a0215A9D',
+        10: '0x340B5d664834113735730Ad4aFb3760219Ad9112',
         420: '0x0D9eFa310a4771c444233B10bfB57e5b991ad529',
     },
 }
