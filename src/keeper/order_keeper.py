@@ -39,11 +39,14 @@ class Keeper:
         while True:
             print('getting new events')
             for ind, event_filter in enumerate(event_filters):
-                events = event_filter.get_new_entries()
+                try:
+                    events = event_filter.get_new_entries()
 
-                for event in events:
-                    asyncio.create_task(self.process_event(
-                        event, self.kwenta.token_list[ind]))
+                    for event in events:
+                        asyncio.create_task(self.process_event(
+                            event, self.kwenta.token_list[ind]))
+                except Exception as e:
+                    print(e)
 
             await asyncio.sleep(7)  # Adjust the sleep time as needed
 
