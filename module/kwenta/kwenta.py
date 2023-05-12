@@ -132,7 +132,22 @@ class Kwenta:
     def _get_tx_params(
         self, value=0, to=None
     ) -> TxParams:
-        """Get generic transaction parameters."""
+        """
+        Get the default tx params
+        ...
+
+        Attributes
+        ----------
+        value : int
+            value to send in wei
+        to : str
+            address to send to
+
+        Returns
+        -------
+        params : dict
+            transaction parameters to be completed with another function
+        """
         params: TxParams = {
             'from': self.wallet_address,
             'to': to,
@@ -198,6 +213,8 @@ class Kwenta:
         ----------
         token_symbol : str
             token symbol from list of supported asset
+        wallet_address : str
+            wallet address to check for delayed order
         """
         if not wallet_address:
             wallet_address = self.wallet_address

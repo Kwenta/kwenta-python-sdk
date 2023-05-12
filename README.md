@@ -1,53 +1,72 @@
 # Kwenta Python SDK
 
-Python SDK to interact with Kwenta's Smart Contract Systems.
-
-## CAUTION: TRADING WITH MARGIN CAN RESULT IN LOSS. PLEASE TRADE RESPONSIBLY!
+Python SDK to interact with Kwenta's smart contracts and Synthetix perps.
 
 ## Installation
 
-The SDK requires the following packages to be installed.
-
-numpy, pandas, plotly, requests, streamlit, web3
+Install the SDK using pip:
 
 ```bash
+  pip install kwenta
+```
+
+## Development
+Create a python virtual environment, activate it and install libraries:
+
+```bash
+python3 -m venv env
+source env/bin/activate
 pip install -r requirements.txt
+pip install -e ./module
 ```
 
-## Variables
+This method will install the local version of the module in editable mode. You can make changes to the SDK and test them without reinstalling the module.
 
-To run this project, you will need to add the following variables filled in the kwenta_config.py script.
+## Usage
 
-`wallet_address` = Wallet Address to trade with.
+To configure an instance of the Kwenta SDK, you need to specify some parameters. At minimum you need to specify the `network_id` and `provider_rpc` to read data from the contracts. If you specify a `wallet_address` and `private_key` you can also submit transactions or create transaction data using the SDK.:
 
-`private_key` = Private Key to wallet_address
+```python
+from kwenta import Kwenta
 
-`provider_rpc` = Use your own provider_rpc if you want to refresh faster.
-
-`telegram_token` = Telegram API Token
-
-`telegram_channel_name` = Telegram Channel name (Keep @ in name) ex: @kwenta_limiter
-
-
-### Telegram integration Steps:
-    1. Search telegram for bot named "@botfarther"
-    2. Message the bot with and type "/newbot"
-    3. Input Bot Name (This will become channel name.)
-    4. Copy API token to telegram_token
-
-## Dashboard Deployment
-
-To run the streamlit dashboard run the following. This is still being built. The Python functions however are fully functional.
-```bash
-  streamlit run .\kwenta-dashboard.py
+kwenta = Kwenta(
+    network_id=10,
+    provider_rpc=YOUR_RPC,
+    wallet_address=YOUR_ADDRESS,
+    private_key=YOUR_PRIVATE_KEY
+)
 ```
 
+To extend the functionality to query subgraphs, Pyth price services, or message on Telegram, you can specify additional parameters.
+
+### Queries / Subgraphs:
+- To fetch perps data specify endpoint `gql_endpoint_perps`: [Optimism-perps subgraph](https://thegraph.com/hosted-service/subgraph/kwenta/optimism-perps)
+- To fetch rates specify endpoint `gql_endpoint_perps`: [Optimism-perps subgraph](https://thegraph.com/hosted-service/subgraph/kwenta/optimism-perps)
+
+### Pyth:
+- Specify the endpoint of a Pyth price service as `price_service_endpoint`
+
+### Telegram:
+1. Search telegram for bot named "@botfarther"
+2. Message the bot with and type "/newbot"
+3. Input bot name (This will become channel name)
+4. Specify API token as `telegram_token`
+5. Specify channel name as `telegram_channel_name`
 
 ## Features
+`kwenta`:
+- Fetch market info
+- Fetch position info
+- Open positions
+- Close positions
+- Modify open positions
+- Transfer margin
+- Execute and cancel orders
+- Limit and stop limit orders
 
-- Limit + Stop Limit Orders using Kwenta V2
-- Open/Close Orders
-- Open Orders with Leverage
-- Account Safety Checks in-place for positioning
-- Move Margin to and from wallet
-- Local Dashboard WIP
+`kwenta.queries`:
+- Fetch historical trades
+- Fetch historical positions
+
+`kwenta.pyth`:
+- Fetch price update data from Pyth price feed
