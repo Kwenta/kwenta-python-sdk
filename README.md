@@ -1,6 +1,6 @@
 # Kwenta Python SDK
 
-Python SDK to interact with Kwenta's smart contracts and Synthetix perps.
+Python SDK to interact with Kwenta's smart contracts, subgraphs, and Synthetix perps.
 
 ## Installation
 
@@ -9,6 +9,8 @@ Install the SDK using pip:
 ```bash
   pip install kwenta
 ```
+
+For more information on usage, see the [Usage](#usage) section and the sample scripts.
 
 ## Development
 Create a python virtual environment, activate it and install libraries:
@@ -47,7 +49,7 @@ To extend the functionality to query subgraphs, Pyth price services, or message 
 - Specify the endpoint of a Pyth price service as `price_service_endpoint`
 
 ### Telegram:
-1. Search telegram for bot named "@botfarther"
+1. Search telegram for bot named "@botfather"
 2. Message the bot with and type "/newbot"
 3. Input bot name (This will become channel name)
 4. Specify API token as `telegram_token`
