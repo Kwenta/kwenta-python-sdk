@@ -132,7 +132,22 @@ class Kwenta:
     def _get_tx_params(
         self, value=0, to=None
     ) -> TxParams:
-        """Get generic transaction parameters."""
+        """
+        Get the default tx params
+        ...
+
+        Attributes
+        ----------
+        value : int
+            value to send in wei
+        to : str
+            address to send to
+
+        Returns
+        -------
+        params : dict
+            transaction parameters to be completed with another function
+        """
         params: TxParams = {
             'from': self.wallet_address,
             'to': to,
@@ -198,6 +213,8 @@ class Kwenta:
         ----------
         token_symbol : str
             token symbol from list of supported asset
+        wallet_address : str
+            wallet address to check for delayed order
         """
         if not wallet_address:
             wallet_address = self.wallet_address
@@ -682,10 +699,10 @@ class Kwenta:
         str: token transfer Tx id
         """
         if (size_delta is None) and (leverage_multiplier is None):
-            print("Enter EITHER a position amount or a leverage multiplier!")
+            print("Enter EITHER a size_delta or a leverage_multiplier!")
             return None
         elif (size_delta is not None) and (leverage_multiplier is not None):
-            print("Enter EITHER a position amount or a leverage multiplier!")
+            print("Enter EITHER a size_delta or a leverage_multiplier!")
             return None
 
         market_contract = self.get_market_contract(token_symbol)
