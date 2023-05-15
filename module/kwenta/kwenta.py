@@ -699,10 +699,10 @@ class Kwenta:
         str: token transfer Tx id
         """
         if (size_delta is None) and (leverage_multiplier is None):
-            print("Enter EITHER a position amount or a leverage multiplier!")
+            print("Enter EITHER a size_delta or a leverage_multiplier!")
             return None
         elif (size_delta is not None) and (leverage_multiplier is not None):
-            print("Enter EITHER a position amount or a leverage multiplier!")
+            print("Enter EITHER a size_delta or a leverage_multiplier!")
             return None
 
         market_contract = self.get_market_contract(token_symbol)
