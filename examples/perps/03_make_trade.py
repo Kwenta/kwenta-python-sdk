@@ -74,10 +74,6 @@ async def main():
     order_after = kwenta.check_delayed_orders(asset)
     print(f'Order after: {order_after}\n')
 
-    # if an order is expired, you can cancel it
-    # order_cancel = kwenta.cancel_order(asset)
-    # print(f'Cancel order tx: {order_cancel}\n')
-
 
 if __name__ == '__main__':
     asyncio.run(main())

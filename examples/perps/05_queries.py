@@ -37,11 +37,14 @@ async def main():
     trades_for_market = await kwenta.queries.trades_for_market(asset)
     print(f'Trades for market {asset}:\n {trades_for_market}')
 
-    # positions_for_account = asyncio.run(sdk.queries.positions_for_account(open_only=False))
-    # print(positions_for_account)
+    # positions for an account
+    positions_for_account = await kwenta.queries.positions_for_account()
+    print(
+        f'Positions for account {kwenta.wallet_address}:\n {positions_for_account}')
 
-    # positions = asyncio.run(sdk.queries.positions(open_only=False))
-    # print(positions)
+    # all open positions
+    positions = await kwenta.queries.positions(open_only=True)
+    print(f'Open positions:\n {positions}')
 
 
 if __name__ == '__main__':
