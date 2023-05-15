@@ -20,7 +20,7 @@ async def main():
     kwenta = Kwenta(
         provider_rpc=PROVIDER_RPC_URL,  # OP mainnet or OP Goerli testnet
         wallet_address=WALLET_ADDRESS,
-        private_key=PRIVATE_KEY,  # optional if you want to sign transactions
+        private_key=PRIVATE_KEY,  # required if you want to sign transactions
         network_id=420  # 420 for OP goerli testnet
     )
 
