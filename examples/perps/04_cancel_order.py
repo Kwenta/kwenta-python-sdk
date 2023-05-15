@@ -15,9 +15,6 @@ async def main():
     """
     1. Configure an instance of the kwenta sdk
     2. Cancel an order for the specified market
-    3. Submit an order to a perps market
-    4. Check the order status
-    5. Check the open position
     """
     # configure an instance of the kwenta sdk
     kwenta = Kwenta(

@@ -14,10 +14,10 @@ PRIVATE_KEY = os.environ.get('PRIVATE_KEY')
 async def main():
     """
     1. Configure an instance of the kwenta sdk
-    2. Cancel an order for the specified market
-    3. Submit an order to a perps market
-    4. Check the order status
-    5. Check the open position
+    2. Query the trades for the connected wallet
+    3. Query the trades for a specified market
+    4. Query the position history for the connected wallet
+    5. Query all open positions
     """
     # configure an instance of the kwenta sdk
     kwenta = Kwenta(
