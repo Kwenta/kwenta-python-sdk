@@ -129,5 +129,5 @@ dmypy.json
 .pyre/
 
 # VS Code
-.vs_code/
+.vscode/
 scripts/
