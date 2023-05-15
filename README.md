@@ -42,11 +42,12 @@ kwenta = Kwenta(
 To extend the functionality to query subgraphs, Pyth price services, or message on Telegram, you can specify additional parameters.
 
 ### Queries / Subgraphs:
-- To fetch perps data specify endpoint `gql_endpoint_perps`: [Optimism-perps subgraph](https://thegraph.com/hosted-service/subgraph/kwenta/optimism-perps)
-- To fetch rates specify endpoint `gql_endpoint_perps`: [Optimism-perps subgraph](https://thegraph.com/hosted-service/subgraph/kwenta/optimism-perps)
+Queries will default to Kwenta's public Hosted Service endpoints for The Graph.
+- To fetch perps data specify endpoint `gql_endpoint_perps`: defaults to [Optimism-perps subgraph](https://thegraph.com/hosted-service/subgraph/kwenta/optimism-perps)
+- To fetch rates specify endpoint `gql_endpoint_perps`: defaults to [Optimism-perps subgraph](https://thegraph.com/hosted-service/subgraph/kwenta/optimism-perps)
 
 ### Pyth:
-- Specify the endpoint of a Pyth price service as `price_service_endpoint`
+- Specify the endpoint of a Pyth price service as `price_service_endpoint` defaults to the public Pyth price service. This should be updated for any production applications to use a private Pyth price service.
 
 ### Telegram:
 1. Search telegram for bot named "@botfather"
