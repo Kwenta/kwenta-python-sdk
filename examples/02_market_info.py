@@ -14,6 +14,7 @@ PRIVATE_KEY = os.environ.get('PRIVATE_KEY')
 def main():
     """
     1. Configure an instance of the kwenta sdk
+    2. Display various read functions to extract market and position data
     """
     # configure an instance of the kwenta sdk
     kwenta = Kwenta(
