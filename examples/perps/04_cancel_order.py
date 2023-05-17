@@ -28,7 +28,7 @@ async def main():
     asset = 'ETH'
 
     # if an order is expired, you can cancel it
-    order_cancel = kwenta.cancel_order(asset)
+    order_cancel = kwenta.cancel_order(asset, execute_now=True)
     print(f'Cancel order tx: {order_cancel}\n')
 
 
