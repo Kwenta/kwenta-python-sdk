@@ -26,4 +26,9 @@ setup(
     python_requires=">=3.8",
     package_data={"kwenta": ["json/*"]},
     include_package_data=True,
+    entry_points={
+        'console_scripts': [
+            'kwenta = kwenta.cli.kwenta_cli:kwenta_cli',
+        ],
+    },
 )

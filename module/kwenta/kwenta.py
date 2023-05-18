@@ -35,23 +35,17 @@ class Kwenta:
         self.private_key = private_key
         self.wallet_address = wallet_address
         self.use_estimate_gas = use_estimate_gas
+        self.provider_rpc = provider_rpc
 
         # init provider
         if provider_rpc.startswith('https'):
-            w3 = Web3(Web3.HTTPProvider(provider_rpc))
+            self.provider_class = Web3.HTTPProvider
         elif provider_rpc.startswith('wss'):
-            w3 = Web3(Web3.WebsocketProvider(provider_rpc))
+            self.provider_class = Web3.WebsocketProvider
         else:
             raise Exception("RPC endpoint is invalid")
 
-        if w3.eth.chain_id != network_id:
-            raise Exception("The RPC `chain_id` must match `network_id`")
-        else:
-            self.network_id = network_id
-            w3.middleware_onion.inject(geth_poa_middleware, layer=0)
-            self.web3 = w3
-            self.nonce = self.web3.eth.get_transaction_count(
-                self.wallet_address)
+        self.network_id = network_id
 
         # init contracts
         self.markets, self.market_contracts, self.susd_token = self._load_markets()
@@ -79,6 +73,18 @@ class Kwenta:
 
         self.pyth = Pyth(
             self.network_id, price_service_endpoint=price_service_endpoint)
+
+    @property
+    def web3(self):
+        w3 = Web3(self.provider_class(self.provider_rpc))
+
+        if w3.eth.chain_id != self.network_id:
+            raise Exception("The RPC `chain_id` must match the stored `network_id`")
+        else:
+            w3.middleware_onion.inject(geth_poa_middleware, layer=0)
+            self.nonce = w3.eth.get_transaction_count(self.wallet_address)
+            return w3
+
 
     def _load_markets(self):
         """
@@ -333,7 +339,7 @@ class Kwenta:
         return {"liq_possible": liquidation_check,
                 "liq_price": liquidation_price}
 
-    def liquidate_position(self, token_symbol: str, wallet_address: str = None, execute_now: bool = False) -> dict:
+    def liquidate_position(self, token_symbol: str, wallet_address: str=None,skip_check:bool=False, execute_now: bool = False) -> dict:
         """
         Checks if Liquidation is possible for wallet
         ...
@@ -351,6 +357,22 @@ class Kwenta:
         if not wallet_address:
             wallet_address = self.wallet_address
         market_contract = self.get_market_contract(token_symbol)
+        if skip_check:
+            data_tx = market_contract.encodeABI(
+                fn_name='liquidatePosition', args=[wallet_address])
+            tx_params = self._get_tx_params(
+                to=market_contract.address)
+            tx_params['data'] = data_tx
+            if execute_now:
+                tx_token = self.execute_transaction(tx_params)
+                print(f"Executing Liquidation for {token_symbol}")
+                print(f"TX: {tx_token}")
+                time.sleep(1)
+                return tx_token
+            else:
+                return {
+                    "token": token_symbol.upper(),
+                    "tx_data": tx_params}
         liquidation_check = market_contract.functions.canLiquidate(
             self.wallet_address).call()
         # check for if liquidation is possible
@@ -358,7 +380,7 @@ class Kwenta:
             data_tx = market_contract.encodeABI(
                 fn_name='liquidatePosition', args=[wallet_address])
             tx_params = self._get_tx_params(
-                to=market_contract.address, value=1)
+                to=market_contract.address)
             tx_params['data'] = data_tx
             if execute_now:
                 tx_token = self.execute_transaction(tx_params)
@@ -375,7 +397,7 @@ class Kwenta:
                 "token": token_symbol.upper(),
                 "tx_data": "N/A, Cannot Liquidate Position."}
 
-    def flag_position(self, token_symbol: str, wallet_address: str = None, execute_now: bool = False) -> dict:
+    def flag_position(self, token_symbol: str, wallet_address: str=None,skip_check:bool=False, execute_now: bool = False) -> dict:
         """
         Checks if Liquidation is possible for wallet
         ...
@@ -393,6 +415,22 @@ class Kwenta:
         if not wallet_address:
             wallet_address = self.wallet_address
         market_contract = self.get_market_contract(token_symbol)
+        if skip_check:
+            data_tx = market_contract.encodeABI(
+                fn_name='flagPosition', args=[wallet_address])
+            tx_params = self._get_tx_params(
+                to=market_contract.address)
+            tx_params['data'] = data_tx
+            if execute_now:
+                tx_token = self.execute_transaction(tx_params)
+                print(f"Executing Flag for {token_symbol}")
+                print(f"TX: {tx_token}")
+                time.sleep(1)
+                return tx_token
+            else:
+                return {
+                    "token": token_symbol.upper(),
+                    "tx_data": tx_params}
         liquidation_check = market_contract.functions.canLiquidate(
             self.wallet_address).call()
         # check for if liquidation is possible
@@ -400,7 +438,7 @@ class Kwenta:
             data_tx = market_contract.encodeABI(
                 fn_name='flagPosition', args=[wallet_address])
             tx_params = self._get_tx_params(
-                to=market_contract.address, value=1)
+                to=market_contract.address)
             tx_params['data'] = data_tx
             if execute_now:
                 tx_token = self.execute_transaction(tx_params)
