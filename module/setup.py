@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 setup(
     name='kwenta',
-    version='1.0.2',
+    version='1.0.3',
     description='Python SDK for Kwenta',
     long_description='Python SDK for Kwenta',
     author='Kwenta DAO',
@@ -11,6 +11,7 @@ setup(
         "pandas",
         "requests",
         "web3>=6.0.0",
+        "gql"
     ],
     classifiers=[
         'Intended Audience :: Developers',
@@ -25,4 +26,9 @@ setup(
     python_requires=">=3.8",
     package_data={"kwenta": ["json/*"]},
     include_package_data=True,
+    entry_points={
+        'console_scripts': [
+            'kwenta = kwenta.cli.kwenta_cli:kwenta_cli',
+        ],
+    },
 )

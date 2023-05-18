@@ -11,3 +11,8 @@ DEFAULT_GQL_ENDPOINT_RATES = {
     10: 'https://api.thegraph.com/subgraphs/name/kwenta/optimism-latest-rates',
     420: 'https://api.thegraph.com/subgraphs/name/kwenta/optimism-goerli-latest-rates'
 }
+
+DEFAULT_PRICE_SERVICE_ENDPOINTS = {
+    10: 'https://xc-mainnet.pyth.network',
+    420: 'https://xc-testnet.pyth.network'
+}

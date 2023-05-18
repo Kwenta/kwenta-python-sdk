@@ -1,12 +1,15 @@
+import asyncio
 import time
 import warnings
 from web3 import Web3
 from web3.types import TxParams
+from web3.middleware import geth_poa_middleware
 from decimal import Decimal
-from .constants import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_SLIPPAGE, DEFAULT_GQL_ENDPOINT_PERPS, DEFAULT_GQL_ENDPOINT_RATES
+from .constants import DEFAULT_NETWORK_ID, DEFAULT_TRACKING_CODE, DEFAULT_SLIPPAGE, DEFAULT_GQL_ENDPOINT_PERPS, DEFAULT_GQL_ENDPOINT_RATES, DEFAULT_PRICE_SERVICE_ENDPOINTS
 from .contracts import abis, addresses
 from .alerts import Alerts
 from .queries import Queries
+from .pyth import Pyth
 
 warnings.filterwarnings('ignore')
 
@@ -18,8 +21,10 @@ class Kwenta:
             wallet_address: str,
             private_key: str = None,
             network_id: int = None,
+            use_estimate_gas: bool = True,
             gql_endpoint_perps: str = None,
             gql_endpoint_rates: str = None,
+            price_service_endpoint: str = None,
             telegram_token: str = None,
             telegram_channel_name: str = None):
         # set default values
@@ -29,14 +34,18 @@ class Kwenta:
         # init account variables
         self.private_key = private_key
         self.wallet_address = wallet_address
+        self.use_estimate_gas = use_estimate_gas
+        self.provider_rpc = provider_rpc
 
         # init provider
-        w3 = Web3(Web3.HTTPProvider(provider_rpc))
-        if w3.eth.chain_id != network_id:
-            raise Exception("The RPC `chain_id` must match `network_id`")
+        if provider_rpc.startswith('https'):
+            self.provider_class = Web3.HTTPProvider
+        elif provider_rpc.startswith('wss'):
+            self.provider_class = Web3.WebsocketProvider
         else:
-            self.network_id = network_id
-            self.web3 = w3
+            raise Exception("RPC endpoint is invalid")
+
+        self.network_id = network_id
 
         # init contracts
         self.markets, self.market_contracts, self.susd_token = self._load_markets()
@@ -54,8 +63,28 @@ class Kwenta:
             gql_endpoint_rates = DEFAULT_GQL_ENDPOINT_RATES[self.network_id]
 
         self.queries = Queries(
+            self,
             gql_endpoint_perps=gql_endpoint_perps,
             gql_endpoint_rates=gql_endpoint_rates)
+
+        # init pyth
+        if not price_service_endpoint:
+            price_service_endpoint = DEFAULT_PRICE_SERVICE_ENDPOINTS[self.network_id]
+
+        self.pyth = Pyth(
+            self.network_id, price_service_endpoint=price_service_endpoint)
+
+    @property
+    def web3(self):
+        w3 = Web3(self.provider_class(self.provider_rpc))
+
+        if w3.eth.chain_id != self.network_id:
+            raise Exception("The RPC `chain_id` must match the stored `network_id`")
+        else:
+            w3.middleware_onion.inject(geth_poa_middleware, layer=0)
+            self.nonce = w3.eth.get_transaction_count(self.wallet_address)
+            return w3
+
 
     def _load_markets(self):
         """
@@ -76,7 +105,7 @@ class Kwenta:
             normalized_market = {
                 "market_address": market[0],
                 "asset": market[1].decode('utf-8').strip("\x00"),
-                "key": market[2].decode('utf-8').strip("\x00"),
+                "key": market[2],
                 "maxLeverage": market[3],
                 "price": market[4],
                 "marketSize": market[5],
@@ -109,19 +138,30 @@ class Kwenta:
     def _get_tx_params(
         self, value=0, to=None
     ) -> TxParams:
-        """Get generic transaction parameters."""
+        """
+        Get the default tx params
+        ...
+
+        Attributes
+        ----------
+        value : int
+            value to send in wei
+        to : str
+            address to send to
+
+        Returns
+        -------
+        params : dict
+            transaction parameters to be completed with another function
+        """
         params: TxParams = {
             'from': self.wallet_address,
             'to': to,
             'chainId': self.network_id,
             'value': value,
-            'gas': 1500000,
-            'gasPrice': self.web3.to_wei(
-                '0.4',
-                'gwei'),
-            'nonce': self.web3.eth.get_transaction_count(self.wallet_address)
+            'gasPrice': self.web3.eth.gas_price,
+            'nonce': self.nonce
         }
-
         return params
 
     def get_market_contract(self, token_symbol: str):
@@ -153,13 +193,24 @@ class Kwenta:
         """
         if self.private_key is None:
             raise Exception("No private key specified.")
+
+        if "gas" not in tx_data:
+            if self.use_estimate_gas:
+                tx_data["gas"] = int(self.web3.eth.estimate_gas(tx_data) * 1.2)
+            else:
+                tx_data["gas"] = 1500000
+
         signed_txn = self.web3.eth.account.sign_transaction(
             tx_data, private_key=self.private_key)
         tx_token = self.web3.eth.send_raw_transaction(
             signed_txn.rawTransaction)
+
+        # increase nonce
+        self.nonce += 1
+
         return self.web3.to_hex(tx_token)
 
-    def check_delayed_orders(self, token_symbol: str) -> bool:
+    def check_delayed_orders(self, token_symbol: str, wallet_address: str = None) -> dict:
         """
         Check if delayed order is in queue
         ...
@@ -168,10 +219,22 @@ class Kwenta:
         ----------
         token_symbol : str
             token symbol from list of supported asset
+        wallet_address : str
+            wallet address to check for delayed order
         """
+        if not wallet_address:
+            wallet_address = self.wallet_address
         market_contract = self.market_contracts[token_symbol]
-        return (market_contract.functions.delayedOrders(
-            self.wallet_address).call())[0]
+        delayed_order = market_contract.functions.delayedOrders(
+            wallet_address).call()
+
+        return {
+            'is_open': True if delayed_order[2] > 0 else False,
+            'size_delta': delayed_order[1],
+            'desired_fill_price': delayed_order[2],
+            'intention_time': int(delayed_order[7]),
+            'executable_time': int(delayed_order[7]) + 15 if int(delayed_order[7]) > 0 else 0,
+        }
 
     def get_current_asset_price(self, token_symbol: str) -> dict:
         """
@@ -192,7 +255,7 @@ class Kwenta:
         usd_price = self.web3.from_wei(wei_price, 'ether')
         return {"usd": usd_price, "wei": wei_price}
 
-    def get_current_position(self, token_symbol: str) -> dict:
+    def get_current_position(self, token_symbol: str, wallet_address: str = None) -> dict:
         """
         Gets Current Position Data
         ...
@@ -205,9 +268,12 @@ class Kwenta:
         ----------
         Dict: position information
         """
+        if not wallet_address:
+            wallet_address = self.wallet_address
+
         market_contract = self.get_market_contract(token_symbol)
         id, last_funding_index, margin, last_price, size = market_contract.functions.positions(
-            self.wallet_address).call()
+            wallet_address).call()
         current_asset_price = self.get_current_asset_price(token_symbol)
 
         # clean usd values
@@ -250,7 +316,7 @@ class Kwenta:
         return {"margin_remaining": margin_allowed,
                 "margin_remaining_usd": margin_usd}
 
-    def can_liquidate(self, token_symbol: str) -> dict:
+    def can_liquidate(self, token_symbol: str, wallet_address: str = None) -> dict:
         """
         Checks if Liquidation is possible for wallet
         ...
@@ -263,13 +329,131 @@ class Kwenta:
         ----------
         Dict: Liquidation Data
         """
+        if not wallet_address:
+            wallet_address = self.wallet_address
         market_contract = self.get_market_contract(token_symbol)
         liquidation_check = market_contract.functions.canLiquidate(
-            self.wallet_address).call()
+            wallet_address).call()
         liquidation_price = market_contract.functions.liquidationPrice(
-            self.wallet_address).call()
+            wallet_address).call()
         return {"liq_possible": liquidation_check,
                 "liq_price": liquidation_price}
+
+    def liquidate_position(self, token_symbol: str, wallet_address: str=None,skip_check:bool=False, execute_now: bool = False) -> dict:
+        """
+        Checks if Liquidation is possible for wallet
+        ...
+
+        Attributes
+        ----------
+        token_symbol : str
+            token symbol from list of supported asset
+        wallet_address : str
+            Wallet address to liquidate
+        Returns
+        ----------
+        Dict: Liquidation of position
+        """
+        if not wallet_address:
+            wallet_address = self.wallet_address
+        market_contract = self.get_market_contract(token_symbol)
+        if skip_check:
+            data_tx = market_contract.encodeABI(
+                fn_name='liquidatePosition', args=[wallet_address])
+            tx_params = self._get_tx_params(
+                to=market_contract.address)
+            tx_params['data'] = data_tx
+            if execute_now:
+                tx_token = self.execute_transaction(tx_params)
+                print(f"Executing Liquidation for {token_symbol}")
+                print(f"TX: {tx_token}")
+                time.sleep(1)
+                return tx_token
+            else:
+                return {
+                    "token": token_symbol.upper(),
+                    "tx_data": tx_params}
+        liquidation_check = market_contract.functions.canLiquidate(
+            self.wallet_address).call()
+        # check for if liquidation is possible
+        if liquidation_check == True:
+            data_tx = market_contract.encodeABI(
+                fn_name='liquidatePosition', args=[wallet_address])
+            tx_params = self._get_tx_params(
+                to=market_contract.address)
+            tx_params['data'] = data_tx
+            if execute_now:
+                tx_token = self.execute_transaction(tx_params)
+                print(f"Executing Liquidation for {token_symbol}")
+                print(f"TX: {tx_token}")
+                time.sleep(1)
+                return tx_token
+            else:
+                return {
+                    "token": token_symbol.upper(),
+                    "tx_data": tx_params}
+        else:
+            return {
+                "token": token_symbol.upper(),
+                "tx_data": "N/A, Cannot Liquidate Position."}
+
+    def flag_position(self, token_symbol: str, wallet_address: str=None,skip_check:bool=False, execute_now: bool = False) -> dict:
+        """
+        Checks if Liquidation is possible for wallet
+        ...
+
+        Attributes
+        ----------
+        token_symbol : str
+            token symbol from list of supported asset
+        wallet_address : str
+            Wallet address to flag for liquidation
+        Returns
+        ----------
+        Dict: flag Liquidation of position
+        """
+        if not wallet_address:
+            wallet_address = self.wallet_address
+        market_contract = self.get_market_contract(token_symbol)
+        if skip_check:
+            data_tx = market_contract.encodeABI(
+                fn_name='flagPosition', args=[wallet_address])
+            tx_params = self._get_tx_params(
+                to=market_contract.address)
+            tx_params['data'] = data_tx
+            if execute_now:
+                tx_token = self.execute_transaction(tx_params)
+                print(f"Executing Flag for {token_symbol}")
+                print(f"TX: {tx_token}")
+                time.sleep(1)
+                return tx_token
+            else:
+                return {
+                    "token": token_symbol.upper(),
+                    "tx_data": tx_params}
+        liquidation_check = market_contract.functions.canLiquidate(
+            self.wallet_address).call()
+        # check for if liquidation is possible
+        if liquidation_check == True:
+            data_tx = market_contract.encodeABI(
+                fn_name='flagPosition', args=[wallet_address])
+            tx_params = self._get_tx_params(
+                to=market_contract.address)
+            tx_params['data'] = data_tx
+            if execute_now:
+                tx_token = self.execute_transaction(tx_params)
+                print(f"Executing Flag for {token_symbol}")
+                print(f"TX: {tx_token}")
+                time.sleep(1)
+                return tx_token
+            else:
+                return {
+                    "token": token_symbol.upper(),
+                    "tx_data": tx_params}
+        else:
+            return {
+                "token": token_symbol.upper(),
+                "tx_data": "N/A, Cannot Flag Position."}
 
     def get_market_skew(self, token_symbol: str) -> dict:
         """
@@ -394,7 +578,6 @@ class Kwenta:
                 tx_token = self.execute_transaction(tx_params)
                 print(f"Updating Position by {token_amount}")
                 print(f"TX: {tx_token}")
-                time.sleep(1)
                 return tx_token
             else:
                 return {"token": token_symbol.upper(),
@@ -407,7 +590,8 @@ class Kwenta:
             token_symbol: str,
             size_delta: float,
             slippage: float = DEFAULT_SLIPPAGE,
-            execute_now: bool = False) -> str:
+            execute_now: bool = False,
+            self_execute: bool = False) -> str:
         """
         Submits a delayed offchain order with a size of `size_delta`
         ...
@@ -422,6 +606,9 @@ class Kwenta:
             wallet_address of wallet to check
         slippage : float
             slippage percentage
+        self_execute : bool
+            If True, wait until the order is executable and execute it
+
         Returns
         ----------
         str: token transfer Tx id
@@ -448,7 +635,9 @@ class Kwenta:
         if execute_now:
             tx_token = self.execute_transaction(tx_params)
             print(f"TX: {tx_token}")
-            time.sleep(1)
+
+            if self_execute:
+                self._wait_and_execute(tx_token, token_symbol)
             return tx_token
         else:
             return {
@@ -460,7 +649,8 @@ class Kwenta:
             self,
             token_symbol: str,
             slippage: float = DEFAULT_SLIPPAGE,
-            execute_now: bool = False) -> str:
+            execute_now: bool = False,
+            self_execute: bool = False) -> str:
         """
         Fully closes account position
         ...
@@ -471,6 +661,8 @@ class Kwenta:
             token symbol from list of supported asset
         slippage : float
             slippage percentage
+        self_execute : bool
+            If True, wait until the order is executable and execute it
 
         Returns
         ----------
@@ -500,7 +692,9 @@ class Kwenta:
             tx_token = self.execute_transaction(tx_params)
             print(f"Closing Position by {-current_position['size']}")
             print(f"TX: {tx_token}")
-            time.sleep(1)
+            if self_execute:
+                self._wait_and_execute(tx_token, token_symbol)
+
             return tx_token
         else:
             return {
@@ -515,7 +709,8 @@ class Kwenta:
             size_delta: float = None,
             slippage: float = DEFAULT_SLIPPAGE,
             leverage_multiplier: float = None,
-            execute_now: bool = False) -> str:
+            execute_now: bool = False,
+            self_execute: bool = False) -> str:
         """
         Open account position in a direction
         ...
@@ -532,6 +727,8 @@ class Kwenta:
             Multiplier of Leverage to use when creating order. Based on available margin in account.
         slippage : float
             slippage percentage
+        self_execute : bool
+            If True, wait until the order is executable and execute it
 
         *Use either size_delta or leverage_multiplier.
 
@@ -540,10 +737,10 @@ class Kwenta:
         str: token transfer Tx id
         """
         if (size_delta is None) and (leverage_multiplier is None):
-            print("Enter EITHER a position amount or a leverage multiplier!")
+            print("Enter EITHER a size_delta or a leverage_multiplier!")
             return None
         elif (size_delta is not None) and (leverage_multiplier is not None):
-            print("Enter EITHER a position amount or a leverage multiplier!")
+            print("Enter EITHER a size_delta or a leverage_multiplier!")
             return None
 
         market_contract = self.get_market_contract(token_symbol)
@@ -592,7 +789,8 @@ class Kwenta:
                 tx_token = self.execute_transaction(tx_params)
                 print(f"Updating Position by {size_delta}")
                 print(f"TX: {tx_token}")
-                time.sleep(1)
+                if self_execute:
+                    self._wait_and_execute(tx_token, token_symbol)
                 return tx_token
             else:
                 return {"token": token_symbol.upper(),
@@ -601,7 +799,218 @@ class Kwenta:
                         "max_leverage": max_leverage / (10**18),
                         "leveraged_percent": (size_delta / max_leverage) * 100,
                         "tx_data": tx_params}
-        return 'some'
+
+    def cancel_order(
+            self,
+            token_symbol: str,
+            account: str = None,
+            execute_now: bool = False) -> str:
+        """
+        Cancels an open order
+        ...
+
+        Attributes
+        ----------
+        account : str
+            address of the account to cancel. (defaults to connected wallet)
+        token_symbol : str
+            token symbol from list of supported asset
+
+        Returns
+        ----------
+        str: transaction hash for closing the order
+        """
+        market_contract = self.get_market_contract(token_symbol)
+        delayed_order = self.check_delayed_orders(token_symbol)
+
+        if account is None:
+            account = self.wallet_address
+
+        if not delayed_order['is_open']:
+            print("No open order")
+            return None
+
+        data_tx = market_contract.encodeABI(
+            fn_name='cancelOffchainDelayedOrder', args=[self.wallet_address])
+
+        tx_params = self._get_tx_params(to=market_contract.address, value=0)
+        tx_params['data'] = data_tx
+
+        if execute_now:
+            tx_token = self.execute_transaction(tx_params)
+            print(f"Cancelling order for {token_symbol}")
+            print(f"TX: {tx_token}")
+            return tx_token
+        else:
+            return {
+                "token": token_symbol.upper(),
+                "tx_data": tx_params}
+
+    def execute_order(
+            self,
+            token_symbol: str,
+            account: str = None,
+            execute_now: bool = False,
+            estimate_gas: bool = False) -> str:
+        """
+        Executes an open order
+        ...
+
+        Attributes
+        ----------
+        account : str
+            address of the account to execute. (defaults to connected wallet)
+        token_symbol : str
+            token symbol from list of supported asset
+
+        Returns
+        ----------
+        str: transaction hash for executing the order
+        """
+        if not account:
+            account = self.wallet_address
+
+        market_contract = self.get_market_contract(token_symbol)
+        delayed_order = self.check_delayed_orders(token_symbol, account)
+
+        if not delayed_order['is_open']:
+            print("No open order")
+            return None
+
+        # get price update data
+        price_update_data = self.pyth.price_update_data(token_symbol)
+
+        if not price_update_data:
+            raise Exception(
+                "Failed to get price update data from price service")
+
+        data_tx = market_contract.encodeABI(
+            fn_name='executeOffchainDelayedOrder', args=[account, [price_update_data]])
+
+        tx_params = self._get_tx_params(to=market_contract.address, value=1)
+        tx_params['data'] = data_tx
+
+        if execute_now:
+            tx_token = self.execute_transaction(tx_params)
+            print(f"Executing order for {token_symbol}")
+            print(f"TX: {tx_token}")
+            return tx_token
+        elif estimate_gas:
+            try:
+                gas_estimate = self.web3.eth.estimate_gas(tx_params)
+                return gas_estimate
+            except Exception as e:
+                print(f'Error estimating gas: {e}')
+                return None
+        else:
+            return {
+                "token": token_symbol.upper(),
+                "tx_data": tx_params}
+
+    async def _wait_and_execute(self, tx, token_symbol, retries=3, retry_interval=1):
+        """
+        Wait for a transaction receipt and execute the order when executable
+        ...
+
+        Attributes
+        ----------
+        tx: str
+            Transaction hash for the order that was submitted
+        token_symbol : str
+            token symbol from list of supported asset
+
+        Returns
+        ----------
+        str: token transfer Tx id
+        """
+        # wait for receipt
+        self.web3.eth.wait_for_transaction_receipt(tx)
+
+        # get delayed order
+        delayed_order = self.check_delayed_orders(token_symbol)
+
+        # wait until executable
+        print('Waiting until order is executable')
+        time.sleep(delayed_order['executable_time'] - time.time())
+
+        # set up the estimate
+        gas_estimate = None
+        attempt = 0
+
+        # Retry gas estimation multiple times
+        while attempt < retries:
+            gas_estimate = self.execute_order(token_symbol, estimate_gas=True)
+
+            if gas_estimate is not None:
+                break
+
+            print(
+                f'Gas estimation failed, retrying in {retry_interval} seconds...')
+            time.sleep(retry_interval)
+            attempt += 1
+
+        # If gas estimation is successful, execute the order
+        if gas_estimate:
+            print(f'Gas estimate for executing order: {gas_estimate}')
+            tx_execute = self.execute_order(token_symbol, execute_now=True)
+            print(f'Executing tx: {tx_execute}')
+        else:
+            print(
+                'Gas estimation failed after multiple retries, not executing the order.')
+
+    async def execute_for_address(self, token_symbol, wallet_address, retries=5, retry_interval=1):
+        """
+        Check an addresses delayed orders and execute the order when executable
+        ...
+
+        Attributes
+        ----------
+        token_symbol : str
+            token symbol from list of supported asset
+        wallet_address: str
+            Transaction hash for the order that was submitted
+        """
+        if not wallet_address:
+            wallet_address = self.wallet_address
+
+        # check delayed orders
+        delayed_order = self.check_delayed_orders(token_symbol, wallet_address)
+
+        # if no order, exit
+        if not delayed_order['is_open']:
+            print("No delayed order open")
+            return
+
+        # wait until executable
+        print('Waiting until order is executable')
+        await asyncio.sleep(delayed_order['executable_time'] - time.time())
+
+        # set up the estimate
+        gas_estimate = None
+        attempt = 0
+
+        # Retry gas estimation multiple times
+        while attempt < retries:
+            gas_estimate = self.execute_order(
+                token_symbol, account=wallet_address, estimate_gas=True)
+
+            if gas_estimate is not None:
+                break
+
+            print(
+                f'Gas estimation failed, retrying in {retry_interval} seconds...')
+            await asyncio.sleep(retry_interval)
+            attempt += 1
+
+        # If gas estimation is successful, execute the order
+        if gas_estimate:
+            print(f'Gas estimate for executing order: {gas_estimate}')
+            tx_execute = self.execute_order(
+                token_symbol, account=wallet_address, execute_now=True)
+            print(f'Executing tx: {tx_execute}')
+        else:
+            print(
+                'Gas estimation failed after multiple retries, not executing the order.')
 
     def open_limit(
             self,
