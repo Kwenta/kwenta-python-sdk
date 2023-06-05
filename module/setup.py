@@ -5,7 +5,15 @@ setup(
     description='Python SDK for Kwenta',
     long_description='Python SDK for Kwenta',
     author='Kwenta DAO',
-    packages=['kwenta'],
+    packages=[
+        'kwenta',
+        'kwenta.alerts',
+        'kwenta.cli',
+        'kwenta.contracts',
+        'kwenta.contracts.json',
+        'kwenta.pyth',
+        'kwenta.queries'
+    ],
     install_requires=[
         "numpy",
         "pandas",
