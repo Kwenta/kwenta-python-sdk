@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 setup(
     name='kwenta',
-    version='1.0.4',
+    version='1.0.5',
     description='Python SDK for Kwenta',
     long_description='Python SDK for Kwenta',
     author='Kwenta DAO',
