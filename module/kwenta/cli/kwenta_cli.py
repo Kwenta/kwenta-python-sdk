@@ -169,9 +169,9 @@ def get_market_skew(ctx, token_symbol):
 
 @click.command()
 @click.pass_context
-def get_susd_balance(ctx):
+def get_susd_balance(ctx,wallet_address):
     try:
-        result = kwenta_instance.get_susd_balance()
+        result = kwenta_instance.get_susd_balance(wallet_address)
         click.echo(f"sUSD balance: {result}")
     except Exception as e:
         click.echo(f"Error: {str(e)}")
@@ -288,6 +288,19 @@ def execute_order(ctx, token_symbol, order_type, side, amount, price, execute_no
     except Exception as e:
         click.echo(f"Error: {str(e)}")
 
+@click.command()
+@click.argument("sm_accounts", type=int)
+@click.pass_context
+def sm_accounts(ctx, wallet_address):
+    try:
+        if wallet_address is None:
+            wallet_address = kwenta_instance.wallet_address
+        accounts = kwenta_instance.get_sm_accounts()
+        click.echo(f"SM Accounts: {accounts}")
+    except Exception as e:
+        click.echo(f"Error1: {str(e)}")
+
+
 kwenta_cli.add_command(configure)
 kwenta_cli.add_command(get_market_contract)
 kwenta_cli.add_command(check_delayed_orders)
@@ -306,6 +319,7 @@ kwenta_cli.add_command(close_position)
 kwenta_cli.add_command(open_position)
 kwenta_cli.add_command(cancel_order)
 kwenta_cli.add_command(execute_order)
+kwenta_cli.add_command(sm_accounts)
 
 if __name__ == '__main__':
     try:

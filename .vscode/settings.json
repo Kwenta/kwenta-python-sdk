@@ -2,5 +2,10 @@
     "python.analysis.typeCheckingMode": "off",
     "python.linting.enabled": true,
     "python.linting.pylintEnabled": true,
-    "python.linting.flake8Enabled": true
+    "python.linting.flake8Enabled": false,
+    "python.linting.banditEnabled": false,
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "python.formatting.provider": "none"
 }
