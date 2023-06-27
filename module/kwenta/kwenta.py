@@ -1530,3 +1530,47 @@ class Kwenta:
             f"Limit not reached current : {current_price['usd']} | Entry: {current_position['last_price']/(10**18)} | Limit: {limit_price} | Stop Limit: {stop_price}"
         )
         return None
+
+    def execute_chain(
+        self, command_list: list, wallet_address: str = None, execute_now: bool = False
+    ) -> str:
+        """
+        Excecute Kwenta Command Chain. Advanced Usage.
+        ...
+        Attributes
+        ----------
+        command_list : list
+            list of commands to execute with command details
+            Example format:
+                token_amount = 55000000
+                market = "SOL"
+                command_list = []
+                command_list.append(kwenta_account.ACCOUNT_COMMANDS['ACCOUNT_MODIFY_MARGIN'],[token_amount])
+                command_list.append(kwenta_account.ACCOUNT_COMMANDS['PERPS_V2_MODIFY_MARGIN'],[market, token_amount])
+        Returns
+        ----------
+        str: token transfer Tx id
+        """
+        if wallet_address is None:
+            wallet_address = self.sm_account
+        sm_account_contract = self.web3.eth.contract(
+            self.web3.to_checksum_address(self.sm_account), abi=abis["SM_Account"]
+        )
+        if execute_now:
+            command_ids = []
+            command_data = []
+            for command in command_list:
+                command_ids.append(command[0])
+                command_data.append(command[1])
+            data_tx = sm_account_contract.encodeABI(
+                fn_name="execute", args=[command_ids, command_data]
+            )
+            tx_params = self._get_tx_params(to=self.sm_account, value=0)
+            tx_params["data"] = data_tx
+            tx_params["nonce"] = self.web3.eth.get_transaction_count(
+                self.wallet_address
+            )
+            tx_token = self.execute_transaction(tx_params)
+            return tx_token
+        else:
+            return {"command_list": command_list, "tx_data": tx_params}
