@@ -83,22 +83,18 @@ Queries will default to Kwenta's public Hosted Service endpoints for The Graph.
 
 - Fetch price update data from Pyth price feed
 
-## SDK Functions
+## Initialization Parameters
 
-###
-
-```http
-  account = Kwenta(INIT VARS)
-```
-
-*provider_rpc: (str, required) Endpoint for the provider's RPC.
-*wallet_address: (str, required) Wallet address for transactions.
-*sm_address: (str, optional) Address of the smart contract, defaults to None.
-*private_key: (str, optional) Private key for the wallet, defaults to None.
-*network_id: (int, optional) Network ID to connect to, defaults to None.
-*use_estimate_gas: (bool, optional) Whether or not to use gas estimation for transactions, defaults to True.
-*gql_endpoint_perps: (str, optional) GraphQL endpoint for perps, defaults to None.
-*gql_endpoint_rates: (str, optional) GraphQL endpoint for rates, defaults to None.
-*price_service_endpoint: (str, optional) Endpoint for the price service, defaults to None.
-*telegram_token: (str, optional) Token for the Telegram bot, defaults to None.
-\*telegram_channel_name: (str, optional) Name of the Telegram channel for notifications, defaults to None.
+| Parameter                | Type     | Description                                                                            |
+| :----------------------- | :------- | :------------------------------------------------------------------------------------- |
+| `provider_rpc`           | `string` | **Required.** Endpoint for the provider's RPC.                                         |
+| `wallet_address`         | `string` | **Required.** Wallet address for transactions.                                         |
+| `sm_address`             | `string` | **Optional.** Address of the smart contract, defaults to None.                         |
+| `private_key`            | `string` | **Optional.** Private key for the wallet, defaults to None.                            |
+| `network_id`             | `int`    | **Optional.** Network ID to connect to, defaults to None.                              |
+| `use_estimate_gas`       | `bool`   | **Optional.** Whether or not to use gas estimation for transactions, defaults to True. |
+| `gql_endpoint_perps`     | `string` | **Optional.** GraphQL endpoint for perps, defaults to None.                            |
+| `gql_endpoint_rates`     | `string` | **Optional.** GraphQL endpoint for rates, defaults to None.                            |
+| `price_service_endpoint` | `string` | **Optional.** Endpoint for the price service, defaults to None.                        |
+| `telegram_token`         | `string` | **Optional.** Token for the Telegram bot, defaults to None.                            |
+| `telegram_channel_name`  | `string` | **Optional.** Name of the Telegram channel for notifications, defaults to None.        |
