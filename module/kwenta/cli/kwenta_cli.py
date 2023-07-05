@@ -113,10 +113,10 @@ def get_current_position(ctx, token_symbol, wallet_address):
 @click.command()
 @click.argument('token_symbol', type=str)
 @click.pass_context
-def get_accessible_margin(ctx, token_symbol):
+def get_accessible_margin(ctx, address):
     try:
-        result = kwenta_instance.get_accessible_margin(token_symbol.upper())
-        click.echo(f"Accessible margin for {token_symbol.upper()}: {result}")
+        result = kwenta_instance.get_accessible_margin(address)
+        click.echo(f"Accessible margin for {address}: {result}")
     except Exception as e:
         click.echo(f"Error: {str(e)}")
 
@@ -194,9 +194,9 @@ def get_leveraged_amount(ctx, token_symbol, leverage_multiplier):
 @click.argument("token_amount", type=int)
 @click.option("--execute_now", is_flag=True)
 @click.pass_context
-def transfer_margin(ctx, token_symbol, token_amount, execute_now):
+def transfer_margin(ctx, token_symbol, token_amount, skip_approval:bool =False,execute_now:bool =False,withdrawal_all:bool =False):
     try:
-        result = kwenta_instance.transfer_margin(token_symbol.upper(), token_amount, execute_now)
+        result = kwenta_instance.transfer_margin(token_symbol.upper(), token_amount, execute_now=execute_now,withdrawal_all=withdrawal_all)
         if execute_now:
             click.echo(f"Token transfer Tx id: {result}")
         else:
@@ -211,9 +211,9 @@ def transfer_margin(ctx, token_symbol, token_amount, execute_now):
 @click.option("--execute_now", is_flag=True)
 @click.option("--self_execute", is_flag=True)
 @click.pass_context
-def modify_position(ctx, token_symbol, size_delta, slippage, execute_now, self_execute):
+def modify_position(ctx, token_symbol, size_delta, slippage,wallet_address, execute_now:bool = False, self_execute:bool = False):
     try:
-        result = kwenta_instance.modify_position(token_symbol.upper(), size_delta, slippage, execute_now, self_execute)
+        result = kwenta_instance.modify_position(token_symbol.upper(), size_delta, slippage, wallet_address,execute_now, self_execute)
         if execute_now:
             click.echo(f"Modify position Tx id: {result}")
         else:
@@ -227,9 +227,9 @@ def modify_position(ctx, token_symbol, size_delta, slippage, execute_now, self_e
 @click.option("--execute_now", is_flag=True)
 @click.option("--self_execute", is_flag=True)
 @click.pass_context
-def close_position(ctx, token_symbol, slippage, execute_now, self_execute):
+def close_position(ctx, token_symbol, slippage, wallet_address, execute_now, self_execute):
     try:
-        result = kwenta_instance.close_position(token_symbol.upper(), slippage, execute_now, self_execute)
+        result = kwenta_instance.close_position(token_symbol.upper(), slippage,wallet_address, execute_now, self_execute)
         if execute_now:
             click.echo(f"Close position Tx id: {result}")
         else:
@@ -246,9 +246,9 @@ def close_position(ctx, token_symbol, slippage, execute_now, self_execute):
 @click.option("--execute_now", is_flag=True)
 @click.option("--self_execute", is_flag=True)
 @click.pass_context
-def open_position(ctx, token_symbol, short, size_delta, slippage, leverage_multiplier, execute_now, self_execute):
+def open_position(ctx, token_symbol,wallet_address, short:bool = False, position_size:float =None, slippage:float = 2, leverage_multiplier:float=None, execute_now:bool = False, self_execute:bool = False):
     try:
-        result = kwenta_instance.open_position(token_symbol.upper(), short, size_delta, slippage, leverage_multiplier, execute_now, self_execute)
+        result = kwenta_instance.open_position(token_symbol.upper(),wallet_address, short=short, position_size=position_size, slippage=slippage, leverage_multiplier=leverage_multiplier, execute_now=execute_now, self_execute=self_execute)
         if execute_now:
             click.echo(f"Open position Tx id: {result}")
         else:
@@ -260,31 +260,13 @@ def open_position(ctx, token_symbol, short, size_delta, slippage, leverage_multi
 @click.argument("order_id", type=int)
 @click.option("--execute_now", is_flag=True)
 @click.pass_context
-def cancel_order(ctx, order_id, execute_now):
+def cancel_order(ctx, token_symbol, account,execute_now: bool = False):
     try:
-        result = kwenta_instance.cancel_order(order_id, execute_now)
+        result = kwenta_instance.cancel_order(token_symbol, account,execute_now=execute_now)
         if execute_now:
             click.echo(f"Cancel order Tx id: {result}")
         else:
             click.echo(f"Cancel order data: {result}")
-    except Exception as e:
-        click.echo(f"Error: {str(e)}")
-
-@click.command()
-@click.argument("token_symbol", type=str)
-@click.argument("order_type", type=click.Choice(["market", "limit"], case_sensitive=False))
-@click.argument("side", type=click.Choice(["buy", "sell"], case_sensitive=False))
-@click.argument("amount", type=float)
-@click.option("--price", type=float, default=None)
-@click.option("--execute_now", is_flag=True)
-@click.pass_context
-def execute_order(ctx, token_symbol, order_type, side, amount, price, execute_now):
-    try:
-        result = kwenta_instance.execute_order(token_symbol.upper(), order_type, side, amount, price, execute_now)
-        if execute_now:
-            click.echo(f"Execute order Tx id: {result}")
-        else:
-            click.echo(f"Execute order data: {result}")
     except Exception as e:
         click.echo(f"Error: {str(e)}")
 
@@ -299,6 +281,21 @@ def sm_accounts(ctx, wallet_address):
         click.echo(f"SM Accounts: {accounts}")
     except Exception as e:
         click.echo(f"Error1: {str(e)}")
+
+@click.command()
+@click.argument("create_sm_account", type=int)
+@click.pass_context
+def sm_accounts(ctx, wallet_address,execute_now: bool = False):
+    try:
+        if wallet_address is None:
+            wallet_address = kwenta_instance.wallet_address
+        accounts = kwenta_instance.new_sm_account(wallet_address,execute_now=execute_now)
+        click.echo(f"Creating new SM Account: {accounts}")
+        sm_accounts = kwenta_instance.get_sm_accounts()
+        click.echo(f"SM Accounts: {sm_accounts[-1]}")
+    except Exception as e:
+        click.echo(f"Error1: {str(e)}")
+
 
 
 kwenta_cli.add_command(configure)
@@ -318,7 +315,6 @@ kwenta_cli.add_command(modify_position)
 kwenta_cli.add_command(close_position)
 kwenta_cli.add_command(open_position)
 kwenta_cli.add_command(cancel_order)
-kwenta_cli.add_command(execute_order)
 kwenta_cli.add_command(sm_accounts)
 
 if __name__ == '__main__':
