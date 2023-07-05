@@ -63,7 +63,6 @@ def load_kwenta_instance(state_file):
     except Exception as e:
         print(e)
 
-    
 @click.command()
 @click.argument('token_symbol', type=str)
 @click.pass_context
