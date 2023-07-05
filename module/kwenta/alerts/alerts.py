@@ -6,7 +6,8 @@ class Alerts:
     def __init__(self, telegram_token: str = None, telegram_channel_name: str = None):
         if not telegram_token or not telegram_channel_name:
             raise Exception(
-                "Must specify both a `telegram_token` and `telegram_channel_name")
+                "Must specify both a `telegram_token` and `telegram_channel_name"
+            )
 
         self._telegram_token = telegram_token
         self._telegram_channel_name = telegram_channel_name
@@ -31,7 +32,7 @@ class Alerts:
         while attempt <= max_retry:
             try:
                 request = requests.post(url)
-                if (request.status_code == 200):
+                if request.status_code == 200:
                     break
                 else:
                     attempt += 1

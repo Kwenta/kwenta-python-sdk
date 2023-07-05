@@ -1,13 +1,13 @@
 import base64
 import requests
 from .constants import PRICE_FEED_IDS
+import json
 
-
-class Pyth:
+class Pyth:            
     def __init__(self, network_id: int, price_service_endpoint: str = None):
         self._price_service_endpoint = price_service_endpoint
         self.price_feed_ids = PRICE_FEED_IDS[network_id]
-
+        
     def price_update_data(self, token_symbol):
         """
         Request price update data from the pyth price service
