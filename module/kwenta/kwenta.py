@@ -12,6 +12,7 @@ from .constants import (
     DEFAULT_GQL_ENDPOINT_PERPS,
     DEFAULT_GQL_ENDPOINT_RATES,
     DEFAULT_PRICE_SERVICE_ENDPOINTS,
+    ACCOUNT_COMMANDS
 )
 from .contracts import abis, addresses
 from .alerts import Alerts
@@ -89,6 +90,7 @@ class Kwenta:
             price_service_endpoint = DEFAULT_PRICE_SERVICE_ENDPOINTS[self.network_id]
 
         self.pyth = Pyth(self.network_id, price_service_endpoint=price_service_endpoint)
+        self.account_commands = ACCOUNT_COMMANDS
 
     @property
     def web3(self):
@@ -1542,15 +1544,19 @@ class Kwenta:
         command_list : list
             list of commands to execute with command details
             Example format:
-                token_amount = 55000000
-                market = "SOL"
+                token_amount = 55000000000
+                token_symbol = "SOL"
                 command_list = []
-                command_list.append(kwenta_account.ACCOUNT_COMMANDS['ACCOUNT_MODIFY_MARGIN'],[token_amount])
-                command_list.append(kwenta_account.ACCOUNT_COMMANDS['PERPS_V2_MODIFY_MARGIN'],[market, token_amount])
+                command1_encoded = encode(account.account_commands['ACCOUNT_MODIFY_MARGIN'][1],[token_amount])
+                command_list.append([account.account_commands['ACCOUNT_MODIFY_MARGIN'][0],command1_encoded])
+                command2_encoded =  encode(account.account_commands['PERPS_V2_MODIFY_MARGIN'][1],[str(account.markets[token_symbol.upper()]["market_address"]),token_amount])
+                command_list.append([account.account_commands['PERPS_V2_MODIFY_MARGIN'][0],command2_encoded])
+                account.execute_chain(command_list,wallet_address,execute_now=True)
         Returns
         ----------
         str: token transfer Tx id
         """
+        
         if wallet_address is None:
             wallet_address = self.sm_account
         sm_account_contract = self.web3.eth.contract(
