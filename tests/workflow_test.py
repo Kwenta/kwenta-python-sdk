@@ -53,7 +53,7 @@ margin_in_account = int(
 )
 print("transfer_margin from SM_account...")
 # account.transfer_margin("SOL",(margin_in_account*-1),execute_now=True)
-account.transfer_margin("SOL", token_amount=1, withdrawal_all=True, execute_now=True)
+account.transfer_margin("SOL", token_amount=-1, withdrawal_all=True, execute_now=True)
 time.sleep(4)
 account.get_susd_balance(smaccount)
 account.get_susd_balance(wallet_address)

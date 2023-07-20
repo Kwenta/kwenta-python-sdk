@@ -758,7 +758,7 @@ class Kwenta:
         )
         if token_amount == 0:
             raise Exception("token_amount Cannot be 0.")
-
+        #Check for withdrawal 
         is_withdrawal = -1 if token_amount < 0 else 1
         token_amount = self.web3.to_wei(abs(token_amount), "ether") * is_withdrawal
         print(token_amount)
@@ -767,68 +767,76 @@ class Kwenta:
         else:
             susd_balance = self.get_susd_balance(self.sm_account)
         print(f"sUSD Balance: {susd_balance['balance_usd']}")
-        if token_amount < susd_balance["balance"]:
-            if execute_now:
-                if (token_amount > 0) and (skip_approval is False):
-                    self.approve_susd(token_amount)
-                    print("Waiting for Approval...")
-                    time.sleep(4.5)
-                if token_amount > 0:
-                    print(f"Adding sUSD to {token_symbol} Market.")
-                    time.sleep(4.5)
-                    print(
-                        f"Market_address: {(self.markets[token_symbol.upper()]['market_address'])}"
-                    )
-                    commandBytes1 = encode(["int256"], [token_amount])
-                    commandBytes2 = encode(
-                        ["address", "int256"],
-                        [
-                            str(self.markets[token_symbol.upper()]["market_address"]),
-                            token_amount,
-                        ],
-                    )
-                    data_tx = sm_account_contract.encodeABI(
-                        fn_name="execute", args=[[0, 2], [commandBytes1, commandBytes2]]
-                    )
-                    tx_params = self._get_tx_params(to=self.sm_account, value=0)
-                    tx_params["data"] = data_tx
-                    tx_params["nonce"] = self.web3.eth.get_transaction_count(
-                        self.wallet_address
-                    )
-                    tx_token = self.execute_transaction(tx_params)
-                    return tx_token
-                else:
-                    # Execute Commands: https://github.com/Kwenta/smart-margin/wiki/Commands
-                    # args[0] == Command ID, args[1] == command inputs, in bytes
-                    if withdrawal_all:
-                        token_amount = (
-                            int(
-                                self.get_accessible_margin(self.sm_account)[
-                                    "margin_remaining_usd"
-                                ]
-                            )
-                            * -1
-                        )
-                    commandBytes = encode(["int256"], [token_amount])
-                    data_tx = sm_account_contract.encodeABI(
-                        fn_name="execute", args=[[0], [commandBytes]]
-                    )
-                    tx_params = self._get_tx_params(to=self.sm_account, value=0)
-                    tx_params["data"] = data_tx
-                    tx_params["nonce"] = self.web3.eth.get_transaction_count(
-                        self.wallet_address
-                    )
+        #check that withdrawal is less than account balance
+        if (token_amount > susd_balance["balance"]):
+            raise Exception(f"Token amount: {token_amount} is greater than Account Balance: {{susd_balance['balance_usd']}}! Verify your balance.")
+        #Move amount from EOA Wallet to SM Account 
+        if (is_withdrawal > 0):
+            if (token_amount > 0) and (skip_approval is False):
+                self.approve_susd(token_amount)
+                print("Waiting for Approval...")
+                time.sleep(4.5)
+            #adding to sm account
+            if token_amount > 0:
+                print(f"Adding sUSD to {token_symbol} Market.")
+                time.sleep(4.5)
+                print(
+                    f"Market_address: {(self.markets[token_symbol.upper()]['market_address'])}"
+                )
+                commandBytes1 = encode(["int256"], [token_amount])
+                commandBytes2 = encode(
+                    ["address", "int256"],
+                    [
+                        str(self.markets[token_symbol.upper()]["market_address"]),
+                        token_amount,
+                    ],
+                )
+                data_tx = sm_account_contract.encodeABI(
+                    fn_name="execute", args=[[0, 2], [commandBytes1, commandBytes2]]
+                )
+                tx_params = self._get_tx_params(to=self.sm_account, value=0)
+                tx_params["data"] = data_tx
+                tx_params["nonce"] = self.web3.eth.get_transaction_count(
+                    self.wallet_address
+                )
+                if execute_now:
                     tx_token = self.execute_transaction(tx_params)
                     print(f"Adding {token_amount} sUSD to Account.")
                     print(f"TX: {tx_token}")
                     return tx_token
+                else:
+                    return {
+                        "token_amount": token_amount / (10**18),
+                        "susd_balance": susd_balance,
+                        "tx_data": tx_params,
+                    }
+        #token Amount Negative == Withdrawal to EOA Wallet
+        else:
+            # Execute Commands: https://github.com/Kwenta/smart-margin/wiki/Commands
+            # args[0] == Command ID, args[1] == command inputs, in bytes
+            if withdrawal_all:
+                token_amount = (int(self.get_accessible_margin(self.sm_account)["margin_remaining"])* -1)
+            commandBytes = encode(["int256"], [token_amount])
+            data_tx = sm_account_contract.encodeABI(
+                fn_name="execute", args=[[0], [commandBytes]]
+            )
+            tx_params = self._get_tx_params(to=self.sm_account, value=0)
+            tx_params["data"] = data_tx
+            tx_params["nonce"] = self.web3.eth.get_transaction_count(
+                self.wallet_address
+            )
+            if execute_now:
+                tx_token = self.execute_transaction(tx_params)
+                print(f"Adding {token_amount} sUSD Moved to EOA Account.")
+                print(f"TX: {tx_token}")
+                return tx_token
             else:
                 return {
                     "token_amount": token_amount / (10**18),
                     "susd_balance": susd_balance,
                     "tx_data": tx_params,
                 }
-
+                
     def modify_position(
         self,
         token_symbol: str,

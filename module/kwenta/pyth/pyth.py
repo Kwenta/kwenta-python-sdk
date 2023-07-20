@@ -34,3 +34,16 @@ class Pyth:
         except Exception as e:
             print(e)
             return None
+
+    def get_pyth_price(self, asset_id:str):
+        url = "https://xc-mainnet.pyth.network/api/latest_price_feeds"
+        params = {
+            'ids[]': asset_id
+        }
+        try:
+            response = requests.get(url, params)
+            price_data = response.json()[0]['price']
+            return price_data
+        except Exception as e:
+            print(e)
+            return None
