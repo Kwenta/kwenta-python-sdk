@@ -100,3 +100,7 @@ Queries will default to Kwenta's public Hosted Service endpoints for The Graph.
 | `price_service_endpoint` | `string` | **Optional.** Endpoint for the price service, defaults to None.                        |
 | `telegram_token`         | `string` | **Optional.** Token for the Telegram bot, defaults to None.                            |
 | `telegram_channel_name`  | `string` | **Optional.** Name of the Telegram channel for notifications, defaults to None.        |
+
+## Workflow
+
+![KWENTA SDK WORKFLOW](/kwenta_python_sdk_workflow_SM.png?raw=true "KWENTA SDK WORKFLOW")
