@@ -19,6 +19,7 @@ from .alerts import Alerts
 from .queries import Queries
 from .pyth import Pyth
 from eth_abi import encode
+import concurrent.futures
 
 warnings.filterwarnings("ignore")
 
@@ -37,6 +38,7 @@ class Kwenta:
         price_service_endpoint: str = None,
         telegram_token: str = None,
         telegram_channel_name: str = None,
+        fast_marketload:    bool= False,
     ):
         # set default values
         if network_id is None:
@@ -47,6 +49,7 @@ class Kwenta:
         self.wallet_address = wallet_address
         self.use_estimate_gas = use_estimate_gas
         self.provider_rpc = provider_rpc
+        self.fast_marketload = fast_marketload
         # init provider
         if provider_rpc.startswith("https"):
             self.provider_class = Web3.HTTPProvider
@@ -103,6 +106,42 @@ class Kwenta:
             # self.nonce = w3.eth.get_transaction_count(self.wallet_address)
             return w3
 
+    def _load_market(self, market):
+        markertsettings_contract = self.web3.eth.contract(
+            self.web3.to_checksum_address(
+                addresses["PerpsV2MarketSettings"][self.network_id]
+            ),
+            abi=abis["PerpsV2MarketSettings"],
+        )
+        maxFundingVelocity = markertsettings_contract.functions.maxFundingVelocity(market[2]).call()
+        skewScale = markertsettings_contract.functions.skewScale(market[2]).call()
+        normalized_market = {
+                "market_address": market[0],
+                "asset": market[1].decode("utf-8").strip("\x00"),
+                "key": market[2],
+                "maxLeverage": market[3],
+                "price": market[4],
+                "marketSize": market[5],
+                "marketSkew": market[6],
+                "marketDebt": market[7],
+                "currentFundingRate": market[8],
+                "currentFundingVelocity": market[9],
+                "takerFee": market[10][0],
+                "makerFee": market[10][1],
+                "takerFeeDelayedOrder": market[10][2],
+                "makerFeeDelayedOrder": market[10][3],
+                "takerFeeOffchainDelayedOrder": market[10][4],
+                "makerFeeOffchainDelayedOrder": market[10][5],
+                "maxFundingVelocity": maxFundingVelocity,
+                "skewScale": skewScale
+            }
+        token_symbol = market[2].decode("utf-8").strip("\x00")[1:-4]
+        market_contract = self.web3.eth.contract(
+            self.web3.to_checksum_address(normalized_market["market_address"]),
+            abi=abis["PerpsV2Market"],
+        )
+        return token_symbol, normalized_market, market_contract
+
     def _load_markets(self):
         """
         Initializes all market contracts
@@ -123,32 +162,38 @@ class Kwenta:
         )
         markets = {}
         market_contracts = {}
-        for market in allmarketsdata:
-            normalized_market = {
-                "market_address": market[0],
-                "asset": market[1].decode("utf-8").strip("\x00"),
-                "key": market[2],
-                "maxLeverage": market[3],
-                "price": market[4],
-                "marketSize": market[5],
-                "marketSkew": market[6],
-                "marketDebt": market[7],
-                "currentFundingRate": market[8],
-                "currentFundingVelocity": market[9],
-                "takerFee": market[10][0],
-                "makerFee": market[10][1],
-                "takerFeeDelayedOrder": market[10][2],
-                "makerFeeDelayedOrder": market[10][3],
-                "takerFeeOffchainDelayedOrder": market[10][4],
-                "makerFeeOffchainDelayedOrder": market[10][5],
-            }
-            # set them
-            token_symbol = market[2].decode("utf-8").strip("\x00")[1:-4]
-            markets[token_symbol] = normalized_market
-            market_contracts[token_symbol] = self.web3.eth.contract(
-                self.web3.to_checksum_address(normalized_market["market_address"]),
-                abi=abis["PerpsV2Market"],
-            )
+        if self.fast_marketload:
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                results = list(executor.map(self._load_market, allmarketsdata))
+            for token_symbol, normalized_market, market_contract in results:
+                markets[token_symbol] = normalized_market
+                market_contracts[token_symbol] = market_contract
+        else:
+            for market in allmarketsdata:
+                normalized_market = {
+                    "market_address": market[0],
+                    "asset": market[1].decode("utf-8").strip("\x00"),
+                    "key": market[2],
+                    "maxLeverage": market[3],
+                    "price": market[4],
+                    "marketSize": market[5],
+                    "marketSkew": market[6],
+                    "marketDebt": market[7],
+                    "currentFundingRate": market[8],
+                    "currentFundingVelocity": market[9],
+                    "takerFee": market[10][0],
+                    "makerFee": market[10][1],
+                    "takerFeeDelayedOrder": market[10][2],
+                    "makerFeeDelayedOrder": market[10][3],
+                    "takerFeeOffchainDelayedOrder": market[10][4],
+                    "makerFeeOffchainDelayedOrder": market[10][5],
+                }
+                token_symbol = market[2].decode("utf-8").strip("\x00")[1:-4]
+                markets[token_symbol] = normalized_market
+                market_contracts[token_symbol] = self.web3.eth.contract(
+                    self.web3.to_checksum_address(normalized_market["market_address"]),
+                    abi=abis["PerpsV2Market"],
+                )    
 
         # load sUSD contract
         susd_token = self.web3.eth.contract(
@@ -576,7 +621,49 @@ class Kwenta:
             "percent_long": percent_long,
             "percent_short": percent_short,
         }
-
+    def get_funding_rate(self, token_symbol:str) -> dict:
+        """
+        Gets current funding rate for market
+        ...
+        Attributes
+        ----------
+        token_symbol : str
+            token symbol from list of supported assets
+        Returns
+        ----------
+        Dict with funding information
+        """
+        market_contract = self.get_market_contract(token_symbol.upper())
+        funding_rate = market_contract.functions.currentFundingRate().call()
+        if funding_rate < 0:
+            rate_percent = self.web3.from_wei(abs(funding_rate),"ether")*-1
+        else:
+            rate_percent = self.web3.from_wei(abs(funding_rate),"ether")
+        return {
+            "funding_rate_percent": rate_percent
+        }
+    def get_funding_velocity(self, token_symbol:str) -> dict:
+        """
+        Gets current funding rate for market
+        ...
+        Attributes
+        ----------
+        token_symbol : str
+            token symbol from list of supported assets
+        Returns
+        ----------
+        Dict with funding information
+        """
+        market_contract = self.get_market_contract(token_symbol.upper())
+        funding_rate = market_contract.functions.currentFundingVelocity().call()
+        if funding_rate < 0:
+            rate_percent = self.web3.from_wei(abs(funding_rate),"ether")*-1
+        else:
+            rate_percent = self.web3.from_wei(abs(funding_rate),"ether")
+        return {
+            "funding_velocity_percent": rate_percent
+        }
+#  getCurrentFundingVelocity ; getCurrentMarketSkew
     def get_susd_balance(self, address: str) -> dict:
         """
         Gets current sUSD Balance in wallet
@@ -744,7 +831,7 @@ class Kwenta:
         Attributes
         ----------
         token_amount : int
-            Token amount *in human readable* to send to Margin account
+           sUSD Token amount *in human readable* to send to Margin account
         wallet_address : str
             wallet_address of wallet to check
         skip_approval: bool
@@ -769,7 +856,7 @@ class Kwenta:
         print(f"sUSD Balance: {susd_balance['balance_usd']}")
         #check that withdrawal is less than account balance
         if (token_amount > susd_balance["balance"]):
-            raise Exception(f"Token amount: {token_amount} is greater than Account Balance: {{susd_balance['balance_usd']}}! Verify your balance.")
+            raise Exception(f"Token amount: {token_amount} is greater than Account Balance: {susd_balance['balance_usd']} | Verify your balance.")
         #Move amount from EOA Wallet to SM Account 
         if (is_withdrawal > 0):
             if (token_amount > 0) and (skip_approval is False):
@@ -1046,8 +1133,8 @@ class Kwenta:
             position_size = self.web3.to_wei(abs(position_size), "ether") * is_short
         elif position_size:
             # check side
-            if (short == True & position_size > 0) or (
-                short == False & position_size < 0
+            if (short == True and position_size > 0) or (
+                short == False and position_size < 0
             ):
                 print(
                     "Position size and Short value do not line up. Double Check intention."
