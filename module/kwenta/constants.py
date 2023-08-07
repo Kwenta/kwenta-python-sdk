@@ -20,13 +20,13 @@ DEFAULT_PRICE_SERVICE_ENDPOINTS = {
 }
 
 ACCOUNT_COMMANDS = {
-    "ACCOUNT_MODIFY_MARGIN": [0, ["uint256"]],
+    "ACCOUNT_MODIFY_MARGIN": [0, ["int256"]],
     "ACCOUNT_WITHDRAW_ETH": [1, ["uint256"]],
-    "PERPS_V2_MODIFY_MARGIN": [2, ["address", "uint256"]],
+    "PERPS_V2_MODIFY_MARGIN": [2, ["address", "int256"]],
     "PERPS_V2_WITHDRAW_ALL_MARGIN": [3, ["address"]],
-    "PERPS_V2_SUBMIT_ATOMIC_ORDER": [4, ["address", "uint256", "uint256"]],
-    "PERPS_V2_SUBMIT_DELAYED_ORDER": [5, ["address", "uint256", "uint256", "uint256"]],
-    "PERPS_V2_SUBMIT_OFFCHAIN_DELAYED_ORDER": [6, ["address", "uint256", "uint256"]],
+    "PERPS_V2_SUBMIT_ATOMIC_ORDER": [4, ["address", "int256", "uint256"]],
+    "PERPS_V2_SUBMIT_DELAYED_ORDER": [5, ["address", "int256", "uint256", "uint256"]],
+    "PERPS_V2_SUBMIT_OFFCHAIN_DELAYED_ORDER": [6, ["address", "int256", "uint256"]],
     "PERPS_V2_CLOSE_POSITION": [7, ["address", "uint256"]],
     "PERPS_V2_SUBMIT_CLOSE_DELAYED_ORDER": [8, ["address", "uint256", "uint256"]],
     "PERPS_V2_SUBMIT_CLOSE_OFFCHAIN_DELAYED_ORDER": [9, ["address", "uint256"]],

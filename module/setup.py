@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="kwenta",
-    version="1.0.8",
+    version="1.0.9",
     description="Python SDK for Kwenta",
     long_description="Python SDK for Kwenta",
     author="Kwenta DAO",

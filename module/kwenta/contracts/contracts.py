@@ -11,6 +11,15 @@ with open(f'{os.path.dirname(os.path.abspath(__file__))}/json/PerpsV2Market.json
 with open(f'{os.path.dirname(os.path.abspath(__file__))}/json/PerpsV2ExchangeRate.json') as json_file:
     PerpsV2ExchangeRate_abi = json.load(json_file)
 
+with open(f'{os.path.dirname(os.path.abspath(__file__))}/json/PerpsV2MarketSettings.json') as json_file:
+    PerpsV2MarketSettings_abi = json.load(json_file)
+
+with open(f'{os.path.dirname(os.path.abspath(__file__))}/json/PerpsV2MarketState.json') as json_file:
+    PerpsV2MarketState_abi = json.load(json_file)
+
+with open(f'{os.path.dirname(os.path.abspath(__file__))}/json/PerpsV2MarketViews.json') as json_file:
+    PerpsV2MarketViews_abi = json.load(json_file)
+
 with open(f'{os.path.dirname(os.path.abspath(__file__))}/json/SMFactory.json') as json_file:
     SMFactory_abi = json.load(json_file)
 
@@ -31,6 +40,9 @@ addresses = {
         10: '0x58e6227510F83d3F45B339F2f7A05a699fDEE6D4',
         420: '0xcE2dC389fc8Be231beECED1D900881e38596d7b2',
     },
+    "PerpsV2MarketSettings":{
+        10: "0x649F44CAC3276557D03223Dbf6395Af65b11c11c"
+    },
     "PerpsV2ExchangeRate": {
         10: '0x2C15259D4886e2C0946f9aB7a5E389c86b3c3b04',
     },
@@ -43,6 +55,9 @@ abis = {
     "sUSD": sUSD_abi,
     "PerpsV2Market": PerpsV2Market_abi,
     "PerpsV2MarketData": PerpsV2MarketData_abi,
+    "PerpsV2MarketSettings": PerpsV2MarketSettings_abi,
+    "PerpsV2MarketViews": PerpsV2MarketViews_abi,
+    "PerpsV2MarketState": PerpsV2MarketState_abi,
     "PerpsV2ExchangeRate": PerpsV2ExchangeRate_abi,
     "SMFactory": SMFactory_abi,
     "SM_Account":SM_Account_abi
