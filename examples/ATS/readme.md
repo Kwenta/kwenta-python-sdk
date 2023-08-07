@@ -6,7 +6,7 @@ Use this ATS your own risk. We do not guarantee profits or accuracy of the bot's
 
 #
 
-This is an example of how you can use the Kwenta Python SDK to build automated trading systems based on strategy. This example shows how you can can apply a triplesuper trend strat to any market supported by Kwenta.
+This is an example of how you can use the Kwenta Python SDK to build automated trading systems based on strategy. This example shows how you can can apply a triple supertrend strat to any market supported by Kwenta.
 
 ## Run ATS
 

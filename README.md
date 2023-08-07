@@ -46,8 +46,6 @@ SDK Versions below 1.6.0 will only support Kwenta V1 isolated margin. Please use
 
 ### Queries / Subgraphs:
 
-To extend the functionality to query subgraphs, Pyth price services, or message on Telegram, you can specify additional parameters.
-
 Queries will default to Kwenta's public Hosted Service endpoints for The Graph.
 
 - To fetch perps data specify endpoint `gql_endpoint_perps`: defaults to [Optimism-perps subgraph](https://thegraph.com/hosted-service/subgraph/kwenta/optimism-perps)
