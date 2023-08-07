@@ -856,7 +856,7 @@ class Kwenta:
         print(f"sUSD Balance: {susd_balance['balance_usd']}")
         #check that withdrawal is less than account balance
         if (token_amount > susd_balance["balance"]):
-            raise Exception(f"Token amount: {token_amount} is greater than Account Balance: {{susd_balance['balance_usd']}}! Verify your balance.")
+            raise Exception(f"Token amount: {token_amount} is greater than Account Balance: {susd_balance['balance_usd']} | Verify your balance.")
         #Move amount from EOA Wallet to SM Account 
         if (is_withdrawal > 0):
             if (token_amount > 0) and (skip_approval is False):
