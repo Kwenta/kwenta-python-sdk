@@ -41,7 +41,7 @@ def main():
     current_position = kwenta.get_current_position(asset)
 
     # get the accessible margin for the connected wallet
-    accessible_margin = kwenta.get_accessible_margin(asset)
+    accessible_margin = kwenta.get_accessible_margin(WALLET_ADDRESS)
 
     # check if there is a delayed order for the connected wallet
     delayed_order = kwenta.check_delayed_orders(asset)
