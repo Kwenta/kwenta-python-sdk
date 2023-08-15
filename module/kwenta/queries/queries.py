@@ -196,3 +196,35 @@ class Queries:
             "query": f"{{futuresPositions(first:500,where:{{marketKey:\"{market_key}\",isOpen:true}},orderDirection:desc,orderBy:timestamp){{id timestamp account abstractAccount accountType margin size asset marketKey pnl feesPaid isOpen openTimestamp entryPrice}}}}"
         }
         return self._make_request(url, payload)
+
+    async def get_funding_rate_history(self, token_symbol, min_timestamp: int = 0, max_timestamp: int = int(time.time())):
+        """
+        Gets historical funding rate for a specified market
+        ...
+
+        Attributes
+        ----------
+        token_symbol : str
+            Market key of the market to fetch
+        min_timestamp : int
+            Start timestamp in second to fetch
+        max_timestamp : int
+            End timestamp in second to fetch
+
+        Returns
+        ----------
+        df: pandas DataFrame containing funding rate history for the market
+        """
+        market_key = self.kwenta.markets[token_symbol]['key']
+
+        # configure the query
+        url = self._gql_endpoint_perps
+        params = {
+            'last_id': '',
+            'market_key': market_key.hex(),
+            'min_timestamp': min_timestamp,
+            'max_timestamp': max_timestamp,
+        }
+
+        result = await self._run_query(queries['funding_rate_history'], params, 'fundingRatePeriods', url)
+        return clean_df(result, config['funding_rate_history'])
