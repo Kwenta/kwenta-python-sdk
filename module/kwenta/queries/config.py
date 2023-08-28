@@ -62,5 +62,13 @@ config = {
         "avgEntryPrice": ["avg_entry_price", "Wei"],
         "lastPrice": ["last_price", "Wei"],
         "exitPrice": ["exit_price", "Wei"]
+    },
+    'funding_rate_history': {
+        "id": ["id", "String"],
+        "period": ["period", "String"],
+        "asset": ["asset", "Bytes"],
+        "marketKey": ["market_key", "Bytes"],
+        "fundingRate": ["funding_rate", "Wei"],
+        "timestamp": ["timestamp", "BigInt"],
     }
 }

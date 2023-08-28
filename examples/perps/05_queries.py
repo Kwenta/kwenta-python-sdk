@@ -2,6 +2,7 @@ import os
 import asyncio
 from kwenta import Kwenta
 from dotenv import load_dotenv
+from datetime import datetime
 
 load_dotenv()
 
@@ -24,7 +25,7 @@ async def main():
         provider_rpc=PROVIDER_RPC_URL,  # OP mainnet or OP Goerli testnet
         wallet_address=WALLET_ADDRESS,
         private_key=PRIVATE_KEY,  # required if you want to sign transactions
-        network_id=420  # 420 for OP goerli testnet
+        network_id=10  # 420 for OP goerli testnet
     )
 
     # trades for an account
@@ -45,6 +46,14 @@ async def main():
     # all open positions
     positions = await kwenta.queries.positions(open_only=True)
     print(f'Open positions:\n {positions}')
+
+    # funding rate history
+    now = int(datetime.now().timestamp())
+    start_time = now - (60 * 60 * 24 * 1)
+    
+    funding_rate_history = await kwenta.queries.get_funding_rate_history(asset, start_time, now)
+    print("Funding rate: ", funding_rate_history)
+
 
 
 if __name__ == '__main__':
