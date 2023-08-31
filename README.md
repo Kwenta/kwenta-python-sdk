@@ -80,6 +80,7 @@ Queries will default to Kwenta's public Hosted Service endpoints for The Graph.
 
 - Fetch historical trades
 - Fetch historical positions
+- Fetch historical funding rates
 
 `kwenta.pyth`:
 

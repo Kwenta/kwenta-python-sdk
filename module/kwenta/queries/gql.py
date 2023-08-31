@@ -202,6 +202,36 @@ positions_account = gql("""
         }
     }
 """)
+                        
+
+funding_rate_history = gql("""
+    query (
+        $last_id: ID!
+        $market_key: Bytes!
+        $min_timestamp: BigInt = 0
+        $max_timestamp: BigInt!                       
+    ) {
+        fundingRatePeriods(
+            where: {
+                id_gt: $last_id
+                marketKey: $market_key
+                timestamp_gt: $min_timestamp
+                timestamp_lt: $max_timestamp
+                period: Hourly
+            }
+            first: 1000
+            orderBy: timestamp
+            orderDirection: asc
+        ) {
+            id
+            period
+            asset
+            marketKey
+            fundingRate
+            timestamp
+        }
+    }
+""")
 
 queries = {
     'candles': candles,
@@ -209,4 +239,5 @@ queries = {
     'trades_market': trades_market,
     'positions': positions,
     'positions_account': positions_account,
+    'funding_rate_history': funding_rate_history
 }
