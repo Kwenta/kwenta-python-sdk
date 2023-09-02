@@ -11,4 +11,5 @@ Folders:
   3. [Make trade](./perps/03_make_trade.py): A simple implementation for transferring margin and opening a position
   4. [Cancel order]((./perps/04_cancel_order.py)): Cancels an open order on a perps market
   5. [Query](./perps/05_queries.py): Query the perps subgraph for trading data
+  6. [Setup](./perps/99_setup_sm_account.py): (Optional) Create the initial Smart Margin account instead of using the web frontend
 - [**Keeper**](./keeper/order_keeper.py): A simple keeper bot that monitors the perps contract and executed delayed offchain orders on the markets.
