@@ -771,14 +771,6 @@ class Kwenta:
         print(f"TX: {tx_token}")
         return tx_token
 
-    # def estimate_trade(self, token_symbol: str, token_amount: int = 1):
-    #     marketviews_contract = self.web3.eth.contract(self.web3.to_checksum_address(self.markets[token_symbol]['market_address']),abi=abis["PerpsV2MarketViews"])
-    #     sizeDelta = token_amount
-    #     tradePrice = 
-    #     orderType = 1 
-    #     sender = self.sm_account
-    #     post_trade_clarity = marketviews_contract.functions.postTradeDetails(sizeDelta,tradePrice,orderType,sender).call()
-
 
     def withdrawal_margin(
         self,
