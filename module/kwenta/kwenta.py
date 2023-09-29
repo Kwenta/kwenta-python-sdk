@@ -20,6 +20,7 @@ from .queries import Queries
 from .pyth import Pyth
 from eth_abi import encode
 import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor,as_completed
 
 warnings.filterwarnings("ignore")
 
@@ -110,14 +111,18 @@ class Kwenta:
             return w3
 
     def _load_market(self, market):
-        markertsettings_contract = self.web3.eth.contract(
+        marketsettings_contract = self.web3.eth.contract(
             self.web3.to_checksum_address(
                 addresses["PerpsV2MarketSettings"][self.network_id]
             ),
             abi=abis["PerpsV2MarketSettings"],
         )
-        maxFundingVelocity = markertsettings_contract.functions.maxFundingVelocity(market[2]).call()
-        skewScale = markertsettings_contract.functions.skewScale(market[2]).call()
+        # if not self.fast_marketload:
+        #     time.sleep(.1)
+        maxFundingVelocity = marketsettings_contract.functions.maxFundingVelocity(market[2]).call()
+        skewScale = marketsettings_contract.functions.skewScale(market[2]).call()
+        maxKeeperFee = marketsettings_contract.functions.maxKeeperFee().call()
+        minKeeperFee = marketsettings_contract.functions.minKeeperFee().call()
         normalized_market = {
                 "market_address": market[0],
                 "asset": market[1].decode("utf-8").strip("\x00"),
@@ -136,7 +141,9 @@ class Kwenta:
                 "takerFeeOffchainDelayedOrder": market[10][4],
                 "makerFeeOffchainDelayedOrder": market[10][5],
                 "maxFundingVelocity": maxFundingVelocity,
-                "skewScale": skewScale
+                "skewScale": skewScale,
+                "maxKeeperFee":maxKeeperFee,
+                "minKeeperFee":minKeeperFee,
             }
         token_symbol = market[2].decode("utf-8").strip("\x00")[1:-4]
         market_contract = self.web3.eth.contract(
@@ -172,31 +179,11 @@ class Kwenta:
                 markets[token_symbol] = normalized_market
                 market_contracts[token_symbol] = market_contract
         else:
-            for market in allmarketsdata:
-                normalized_market = {
-                    "market_address": market[0],
-                    "asset": market[1].decode("utf-8").strip("\x00"),
-                    "key": market[2],
-                    "maxLeverage": market[3],
-                    "price": market[4],
-                    "marketSize": market[5],
-                    "marketSkew": market[6],
-                    "marketDebt": market[7],
-                    "currentFundingRate": market[8],
-                    "currentFundingVelocity": market[9],
-                    "takerFee": market[10][0],
-                    "makerFee": market[10][1],
-                    "takerFeeDelayedOrder": market[10][2],
-                    "makerFeeDelayedOrder": market[10][3],
-                    "takerFeeOffchainDelayedOrder": market[10][4],
-                    "makerFeeOffchainDelayedOrder": market[10][5],
-                }
-                token_symbol = market[2].decode("utf-8").strip("\x00")[1:-4]
+            with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
+                results = list(executor.map(self._load_market, allmarketsdata))
+            for token_symbol, normalized_market, market_contract in results:
                 markets[token_symbol] = normalized_market
-                market_contracts[token_symbol] = self.web3.eth.contract(
-                    self.web3.to_checksum_address(normalized_market["market_address"]),
-                    abi=abis["PerpsV2Market"],
-                )    
+                market_contracts[token_symbol] = market_contract
 
         # load sUSD contract
         susd_token = self.web3.eth.contract(
@@ -404,7 +391,7 @@ class Kwenta:
         return {"usd": usd_price, "wei": wei_price}
 
     def get_current_position(
-        self, token_symbol: str, wallet_address: str = None
+        self, token_symbol: str = "ETH", wallet_address: str = None, all_markets: bool = False
     ) -> dict:
         """
         Gets Current Position Data
@@ -421,35 +408,37 @@ class Kwenta:
         if not wallet_address:
             wallet_address = self.sm_account
 
-        market_contract = self.get_market_contract(token_symbol)
-        (
-            id,
-            last_funding_index,
-            margin,
-            last_price,
-            size,
-        ) = market_contract.functions.positions(wallet_address).call()
-        current_asset_price = self.get_current_asset_price(token_symbol)
+        def fetch_positions(token_symbol):
+            market_contract = self.get_market_contract(token_symbol)
+            (id, last_funding_index, margin, last_price, size) = market_contract.functions.positions(wallet_address).call()
+            current_asset_price = self.get_current_asset_price(token_symbol)
 
-        # clean usd values
-        is_short = -1 if size < 0 else 1
-        size_ether = self.web3.from_wei(abs(size), "ether") * is_short
-        last_price_usd = self.web3.from_wei(last_price, "ether")
+            is_short = -1 if size < 0 else 1
+            size_ether = self.web3.from_wei(abs(size), "ether") * is_short
+            last_price_usd = self.web3.from_wei(last_price, "ether")
+            price_diff = current_asset_price["usd"] - last_price_usd
+            pnl = size_ether * price_diff * is_short
 
-        # calculate pnl
-        price_diff = current_asset_price["usd"] - last_price_usd
-        pnl = size_ether * price_diff * is_short
-
-        positions_data = {
-            "id": id,
-            "last_funding_index": last_funding_index,
-            "margin": margin,
-            "last_price": last_price,
-            "size": size,
-            "pnl_usd": pnl,
-        }
-        return positions_data
-
+            return {
+                "id": id,
+                "last_funding_index": last_funding_index,
+                "margin": margin,
+                "last_price": last_price,
+                "size": size,
+                "pnl_usd": pnl,
+            }
+        
+        if all_markets:
+            positions_data_list = []
+            with ThreadPoolExecutor() as executor:
+                futures = {executor.submit(fetch_positions, token): token for token in self.token_list}
+                for future in as_completed(futures):
+                    data = future.result()
+                    positions_data_list.append(data)
+            return positions_data_list
+        else:
+            return fetch_positions(token_symbol)
+        
     def get_accessible_margin(self, address: str) -> dict:
         """
         Gets available NON-MARKET account margin
@@ -781,6 +770,7 @@ class Kwenta:
         tx_token = self.execute_transaction(tx_params)
         print(f"TX: {tx_token}")
         return tx_token
+
 
     def withdrawal_margin(
         self,
